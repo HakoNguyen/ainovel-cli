@@ -157,9 +157,12 @@ func (t *ContextTool) Execute(_ context.Context, args json.RawMessage) (json.Raw
 
 	// 优先级预算：总大小超过阈值时裁剪低优先级数据；摘要在裁剪完成后重建，
 	// 确保展示的字段数量和 _trimmed 与最终 payload 一致。
-	budget := 60 * 1024
+	// foundation（premise / characters / world_rules）不参与裁剪，超出预算整次调用失败；
+	// architect 拿不到 fingerprint 就无法 audit_foundation，规划阶段会原地打转。
+	// 越南语等拉丁字母加声调的作品，同样设定的体积明显大于中文（实测 67–89KB），故预算放宽。
+	budget := 128 * 1024
 	if a.Chapter > 0 {
-		budget = 100 * 1024
+		budget = 160 * 1024
 	}
 	return finalizeContextPayload(result, a.Chapter, budget)
 }

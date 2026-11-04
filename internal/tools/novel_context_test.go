@@ -1226,3 +1226,41 @@ func TestContextToolInjectsRuleViolations(t *testing.T) {
 		t.Fatal("无违规章节不应带 rule_violations 字段")
 	}
 }
+
+// 越南语作品的 foundation 不参与裁剪，体积常超过旧的 60KB 预算；规划视图必须仍能取到，
+// 否则 architect 无法拿 fingerprint 做 audit_foundation。
+func TestContextToolPlanningFitsLargeVietnameseFoundation(t *testing.T) {
+	s := store.NewStore(t.TempDir())
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	para := "Thương Cảnh Thâm là người thừa kế tập đoàn, lạnh lùng nhưng giữ lời; quá khứ bị gia tộc phản bội khiến anh không tin ai. "
+	if err := s.Outline.SavePremise("## Tiền đề\n" + strings.Repeat(para, 150)); err != nil {
+		t.Fatal(err)
+	}
+	var chars []domain.Character
+	for i := 0; i < 30; i++ {
+		chars = append(chars, domain.Character{
+			Name: fmt.Sprintf("Nhân vật %d", i), Role: "phụ", Description: strings.Repeat(para, 6),
+			Arc: strings.Repeat("Từ nghi ngờ đến tin tưởng, rồi tự tay chọn đứng về phía sự thật. ", 4),
+		})
+	}
+	if err := s.Characters.Save(chars); err != nil {
+		t.Fatal(err)
+	}
+	var rules []domain.WorldRule
+	for i := 0; i < 40; i++ {
+		rules = append(rules, domain.WorldRule{Category: "society", Rule: strings.Repeat(para, 2), Boundary: "Không được phá vỡ quan hệ hào môn đã thiết lập."})
+	}
+	if err := s.World.SaveWorldRules(rules); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := newTestContextTool(s, References{}, "default").Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("planning context với nền truyện lớn phải đọc được: %v", err)
+	}
+	if len(raw) < 60*1024 {
+		t.Fatalf("dữ liệu thử phải vượt ngưỡng cũ 60KB mới có ý nghĩa, mới %d byte", len(raw))
+	}
+}
