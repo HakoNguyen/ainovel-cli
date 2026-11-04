@@ -35,7 +35,8 @@ type bookRT struct {
 	store *store.Store
 	hub   *hub
 	cfg   bootstrap.Config
-	stale bool // 配置已变更，等引擎停下后用新配置重开；仅在 library.mu 下读写
+	stale bool      // 配置已变更，等引擎停下后用新配置重开；仅在 library.mu 下读写
+	guard loopGuard // 复读检测；只在 pump goroutine 内使用
 }
 
 func newLibrary(cfg bootstrap.Config, d *db, root string) *library {
@@ -205,6 +206,14 @@ func newID() string {
 	return hex.EncodeToString(b)
 }
 
+// stopLooping 在模型复读时暂停引擎：继续生成只会烧到 max_tokens，结果也用不了。
+func (rt *bookRT) stopLooping(sample string) {
+	slog.Warn("web: model lặp vô nghĩa, tự dừng engine", "module", "web", "book", rt.id, "sample", sample)
+	go rt.eng.Abort()
+	rt.hub.publishError(fmt.Sprintf("Model đang lặp lại vô nghĩa (…%s…) nên đã tự dừng để khỏi tốn tiền. "+
+		"Hãy đổi model cho Kiến trúc sư / Người viết trong ⚙ Cài đặt rồi bấm ▶ Tiếp tục.", strings.TrimSpace(sample)))
+}
+
 // pump 把 Host 的事件与流式输出转发到这本书的所有浏览器连接。
 func (rt *bookRT) pump() {
 	for {
@@ -225,16 +234,21 @@ func (rt *bookRT) pump() {
 				return
 			}
 			if delta == host.StreamClearSentinel {
+				rt.guard.reset()
 				rt.hub.publishClear()
 				continue
 			}
 			if delta != "" {
 				rt.hub.publishDelta(delta)
+				if tripped, sample := rt.guard.feed(delta); tripped {
+					rt.stopLooping(sample)
+				}
 			}
 		case _, ok := <-rt.eng.Done():
 			if !ok {
 				return
 			}
+			rt.guard.reset()
 			rt.hub.publish("done", nil)
 		}
 	}
