@@ -12,7 +12,10 @@ import (
 
 const (
 	recentEventCap = 300
-	liveTextCap    = 200_000 // 单轮流式缓存上限（字节），超出只保留尾部
+	liveTextCap    = 80_000 // 单轮流式缓存上限（字节），超出只保留后一半
+	// 模型每秒吐出几十个小片段；攒一小段再推给浏览器，消息数降一个数量级，
+	// 浏览器也不必每个 token 都重排一次版面。
+	deltaFlushDelay = 150 * time.Millisecond
 )
 
 type eventPayload struct {
@@ -30,6 +33,7 @@ type hub struct {
 	clients map[chan []byte]struct{}
 	recent  [][]byte
 	live    strings.Builder
+	pending strings.Builder // 尚未推送的流式片段
 }
 
 func newHub() *hub {
@@ -50,9 +54,19 @@ func (h *hub) broadcastLocked(msg []byte) {
 	}
 }
 
+// flushLocked 推送攒下的流式片段。其他消息发出前都先调用它，保证浏览器看到的顺序不乱。
+func (h *hub) flushLocked() {
+	if h.pending.Len() == 0 {
+		return
+	}
+	h.broadcastLocked(encodeMsg("delta", h.pending.String()))
+	h.pending.Reset()
+}
+
 func (h *hub) publish(kind string, data any) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.flushLocked()
 	h.broadcastLocked(encodeMsg(kind, data))
 }
 
@@ -60,6 +74,7 @@ func (h *hub) publishEvent(ev eventPayload) {
 	msg := encodeMsg("event", ev)
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.flushLocked()
 	h.recent = append(h.recent, msg)
 	if len(h.recent) > recentEventCap {
 		h.recent = h.recent[len(h.recent)-recentEventCap:]
@@ -84,12 +99,20 @@ func (h *hub) publishDelta(delta string) {
 		h.live.Reset()
 		h.live.WriteString(s[i:])
 	}
-	h.broadcastLocked(encodeMsg("delta", delta))
+	if h.pending.Len() == 0 {
+		time.AfterFunc(deltaFlushDelay, func() {
+			h.mu.Lock()
+			h.flushLocked()
+			h.mu.Unlock()
+		})
+	}
+	h.pending.WriteString(delta)
 }
 
 func (h *hub) publishClear() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.flushLocked()
 	h.live.Reset()
 	h.broadcastLocked(encodeMsg("clear", nil))
 }
@@ -107,6 +130,7 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request, rt *bookRT
 	ch := make(chan []byte, 512)
 	h := rt.hub
 	h.mu.Lock()
+	h.flushLocked() // 攒着的片段已写进 live，先推给旧连接，免得新连接再收到一遍
 	backlog := append([][]byte(nil), h.recent...)
 	backlog = append(backlog, encodeMsg("live", h.live.String()))
 	h.clients[ch] = struct{}{}

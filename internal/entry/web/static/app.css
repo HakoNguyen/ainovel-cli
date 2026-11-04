@@ -183,7 +183,10 @@ button, select, textarea, input { font: inherit; color: inherit; }
 .reading ul { margin: 0 0 .6em; padding-left: 20px; }
 .reading li { margin-bottom: 4px; }
 .reading .core { background: var(--ai-soft); border-radius: 8px; padding: 10px 14px; }
-.mono-ish { white-space: pre-wrap; font-size: 14.5px; }
+/* Luồng Trực tiếp dùng font hệ thống: font web chia subset theo unicode-range làm một đoạn dài
+   tiếng Việt bị cắt thành vô số khúc, đo được ~5 giây mỗi lần vẽ 40k ký tự (font hệ thống ~50ms). */
+.mono-ish { white-space: pre-wrap; font-size: 14px; line-height: 1.65; font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif; }
+.live-trim { font-family: var(--sans); margin-bottom: 8px; }
 .ai-meta { font-family: var(--sans); font-size: 12px; color: var(--muted); margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
 
 /* ---------- Trình soạn thảo (Quill) ---------- */

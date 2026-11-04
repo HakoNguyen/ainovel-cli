@@ -345,7 +345,7 @@ function switchTab(nav, name) {
   const scope = nav.closest(".sidebar, .pane");
   scope.querySelectorAll(":scope > [data-panel]").forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
   if (name === "activity") { S.unreadAct = 0; $("#actBadge").classList.add("hidden"); }
-  if (name === "live") { const box = $("#aiLive"); box.scrollTop = box.scrollHeight; }
+  if (name === "live") { renderLive(true); const box = $("#aiLive"); box.scrollTop = box.scrollHeight; }
 }
 
 // ================= Trạng thái engine =================
@@ -714,23 +714,44 @@ function connectEvents() {
   es.onopen = () => { if (S.bookId === id) loadState(); };
 }
 
-let liveNode = null;
+// Luồng chữ của AI có thể dài hàng trăm nghìn ký tự. Vẽ lại cả khối sau mỗi mẩu chữ làm trình duyệt đơ,
+// nên chỉ giữ phần cuối, gom cập nhật ~3 lần/giây và không vẽ khi tab Trực tiếp đang ẩn.
+const LIVE_KEEP = 30000;
+const LIVE_EVERY_MS = 300;
+const LIVE = { buf: "", trimmed: false, timer: null, dirty: false };
+
 function resetLive(text) {
-  const box = $("#aiLive");
-  box.replaceChildren();
-  liveNode = document.createTextNode(text);
-  box.append(liveNode);
-  if (!text) box.append(el("div", { class: "empty" }, "Khi AI chạy, nội dung nó đang viết sẽ hiện ở đây theo thời gian thực."));
+  LIVE.buf = "";
+  LIVE.trimmed = false;
+  appendLive(text || "", true);
 }
-function appendLive(delta) {
+function appendLive(delta, now) {
+  LIVE.buf += delta;
+  if (LIVE.buf.length > LIVE_KEEP * 1.5) {
+    LIVE.buf = LIVE.buf.slice(-LIVE_KEEP);
+    LIVE.trimmed = true;
+  }
+  LIVE.dirty = true;
+  if (now) { clearTimeout(LIVE.timer); LIVE.timer = null; renderLive(); return; }
+  if (!LIVE.timer) LIVE.timer = setTimeout(renderLive, LIVE_EVERY_MS);
+}
+function renderLive(force) {
+  LIVE.timer = null;
   const box = $("#aiLive");
-  if (!liveNode || !box.contains(liveNode)) resetLive("");
-  const empty = box.querySelector(".empty");
-  if (empty) empty.remove();
+  if (!force && (!box.classList.contains("active") || document.hidden)) return; // vẽ khi mở tab
+  if (!LIVE.dirty && !force) return;
+  LIVE.dirty = false;
   const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-  liveNode.appendData(delta);
+  if (!LIVE.buf) {
+    box.replaceChildren(el("div", { class: "empty" }, "Khi AI chạy, nội dung nó đang viết sẽ hiện ở đây theo thời gian thực."));
+    return;
+  }
+  box.replaceChildren(
+    LIVE.trimmed ? el("div", { class: "hint live-trim" }, "… (chỉ hiện phần mới nhất)") : "",
+    document.createTextNode(LIVE.buf));
   if (stick) box.scrollTop = box.scrollHeight;
 }
+document.addEventListener("visibilitychange", () => { if (!document.hidden && LIVE.dirty) renderLive(); });
 
 function addActivity(ev) {
   const box = $("#activity");
