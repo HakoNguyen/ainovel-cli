@@ -92,6 +92,7 @@ func Run(cfg bootstrap.Config, opts Options) error {
 	mux.HandleFunc("PATCH /api/books/{id}", s.handleRenameBook)
 	mux.HandleFunc("DELETE /api/books/{id}", s.handleArchiveBook)
 	mux.HandleFunc("POST /api/books/{id}/restore", s.handleRestoreBook)
+	mux.HandleFunc("POST /api/books/{id}/purge", s.handlePurgeBook)
 	mux.HandleFunc("GET /api/library/scan", s.handleScanDisk)
 	mux.HandleFunc("POST /api/library/import", s.handleImportDir)
 

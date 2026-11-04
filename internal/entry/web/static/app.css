@@ -404,3 +404,5 @@ button, select, textarea, input { font: inherit; color: inherit; }
   .cocreate { flex-direction: column; padding: 8px; }
   .co-chat, .co-draft { flex: none; height: 70vh; }
 }
+.btn.danger { color: var(--err); }
+.btn.danger:hover:not(:disabled) { border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }

@@ -173,7 +173,8 @@ function renderLibrary() {
         el("span", {}, "Sửa lần cuối " + timeAgo(b.updated_at)),
         el("span", { class: "tools" },
           el("button", { class: "btn tiny ghost", title: "Đổi tên", onclick: (e) => { e.stopPropagation(); renameBook(b); } }, "✎"),
-          el("button", { class: "btn tiny ghost", title: "Ẩn khỏi thư viện (giữ nguyên file)", onclick: (e) => { e.stopPropagation(); archiveBook(b); } }, "🗄"))));
+          el("button", { class: "btn tiny ghost", title: "Ẩn khỏi thư viện (giữ nguyên file)", onclick: (e) => { e.stopPropagation(); archiveBook(b); } }, "🗄"),
+          el("button", { class: "btn tiny ghost danger", title: "Xoá vĩnh viễn (xoá cả file trên đĩa)", onclick: (e) => { e.stopPropagation(); purgeBook(b, b.title); } }, "🗑"))));
     grid.append(card);
   }
   grid.append(el("div", { class: "book-card new-card", tabindex: "0", onclick: () => openNewDialog(null),
@@ -193,8 +194,25 @@ function renderHidden() {
     const name = b.renamed || !b.ai_title ? b.name : b.ai_title;
     list.append(el("div", { class: "hidden-row" },
       el("b", {}, name), el("span", { class: "muted" }, b.dir),
-      el("button", { class: "btn tiny", onclick: () => restoreBook(b) }, "Khôi phục")));
+      el("button", { class: "btn tiny", onclick: () => restoreBook(b) }, "Khôi phục"),
+      el("button", { class: "btn tiny ghost danger", onclick: () => purgeBook(b, name) }, "Xoá vĩnh viễn")));
   }
+}
+
+// Xoá hẳn: không khôi phục được nên bắt gõ chữ xác nhận.
+async function purgeBook(b, name) {
+  const tui = b.dir === "output/novel" ? "\nĐây cũng là truyện của bản TUI (output/novel), TUI sẽ mất truyện này.\n" : "";
+  const typed = prompt(
+    `XOÁ VĨNH VIỄN “${name}”?\n\n` +
+    "Sẽ xoá hẳn: tiền đề, dàn ý, nhân vật, các chương AI viết, bản thảo của bạn, ảnh và toàn bộ lịch sử trò chuyện.\n" +
+    `Thư mục: workspace/${b.dir}\n${tui}KHÔNG thể khôi phục.\n\nGõ XOA để xác nhận:`);
+  if (typed === null) return;
+  if (typed.trim().toUpperCase() !== "XOA") { toast("Chưa xoá: chữ xác nhận không đúng", "error"); return; }
+  try {
+    await api(`api/books/${b.id}/purge`, { method: "POST" });
+    toast(`Đã xoá vĩnh viễn “${name}”`);
+    loadBooks();
+  } catch (e) { toast(e.message, "error"); }
 }
 async function restoreBook(b) {
   try { await api(`api/books/${b.id}/restore`, { method: "POST" }); toast("Đã đưa truyện trở lại thư viện"); loadBooks(); }

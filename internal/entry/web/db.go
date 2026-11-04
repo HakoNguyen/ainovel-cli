@@ -230,6 +230,35 @@ func (d *db) archiveBook(id string) error {
 	return d.execOne(`UPDATE books SET archived = 1 WHERE id = ? AND archived = 0`, id)
 }
 
+// getBookAny 按 ID 取书，包括已隐藏的。
+func (d *db) getBookAny(id string) (bookRow, error) {
+	b, err := scanBook(d.sql.QueryRow(`SELECT `+bookCols+` FROM books WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return b, errNotFound
+	}
+	return b, err
+}
+
+// purgeBook 删除书库记录及其全部对话与共创会话（消息随会话级联删除）。
+func (d *db) purgeBook(id string) error {
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, q := range []string{
+		`DELETE FROM cocreate WHERE book_id = ?`,
+		`DELETE FROM chat_messages WHERE session_id IN (SELECT id FROM chat_sessions WHERE book_id = ?)`,
+		`DELETE FROM chat_sessions WHERE book_id = ?`,
+		`DELETE FROM books WHERE id = ?`,
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (d *db) restoreBook(id string) error {
 	return d.execOne(`UPDATE books SET archived = 0, updated_at = ? WHERE id = ? AND archived = 1`, now(), id)
 }

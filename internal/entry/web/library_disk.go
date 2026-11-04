@@ -144,6 +144,74 @@ func (s *server) handleImportDir(w http.ResponseWriter, r *http.Request) {
 	writeErr(w, http.StatusNotFound, fmt.Errorf("Không thấy thư mục truyện %q (hoặc nó đã có trong thư viện)", body.Dir))
 }
 
+// safeBookDir 确认目录位于工作目录之内、且确实是一本书的目录，才允许整个删除。
+func safeBookDir(dir string) (string, error) {
+	clean := filepath.Clean(dir)
+	if clean == "." {
+		return "", fmt.Errorf("không xoá thư mục gốc workspace")
+	}
+	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("thư mục %q nằm ngoài workspace, không xoá", dir)
+	}
+	root, err := filepath.Abs(".")
+	if err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(clean)
+	if err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(root, abs); err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("thư mục %q nằm ngoài workspace, không xoá", dir)
+	}
+	return abs, nil
+}
+
+// handlePurgeBook 永久删除：书库记录、对话、共创会话，以及整个作品目录（含作者稿与图片）。
+// 不可恢复，前端需二次确认；运行中的书拒绝删除。
+func (s *server) handlePurgeBook(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	row, err := s.db.getBookAny(id)
+	if err != nil {
+		writeErr(w, statusOf(err), err)
+		return
+	}
+	if rt := s.lib.peek(id); rt != nil && rt.eng.Snapshot().IsRunning {
+		writeErr(w, http.StatusConflict, fmt.Errorf("AI đang chạy truyện này, hãy dừng trước"))
+		return
+	}
+	abs, err := safeBookDir(row.Dir)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	// 目录存在时必须像一本书，避免误删登记错的普通目录；目录已不在则只清记录。
+	_, statErr := os.Stat(abs)
+	exists := statErr == nil
+	if exists && !isBookDir(abs) && !isEmptyDir(abs) {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("thư mục %q không giống thư mục truyện, không xoá", row.Dir))
+		return
+	}
+	s.lib.closeBook(id) // 先释放目录租约
+	if err := s.db.purgeBook(id); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if exists {
+		if err := os.RemoveAll(abs); err != nil {
+			writeErr(w, http.StatusInternalServerError, fmt.Errorf("đã xoá khỏi thư viện nhưng xoá thư mục thất bại: %w", err))
+			return
+		}
+	}
+	slog.Info("web: đã xoá vĩnh viễn truyện", "module", "web", "book", id, "dir", row.Dir)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func isEmptyDir(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	return err == nil && len(entries) == 0
+}
+
 func (s *server) handleRestoreBook(w http.ResponseWriter, r *http.Request) {
 	if err := s.db.restoreBook(r.PathValue("id")); err != nil {
 		writeErr(w, statusOf(err), err)
