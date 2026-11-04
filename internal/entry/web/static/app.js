@@ -23,6 +23,8 @@ const S = {
   unreadAct: 0,
   openedAt: 0,
   newTarget: null,    // null = tạo truyện mới; id = bắt đầu truyện trống đó
+  pendingIdea: {},    // bookId -> ý tưởng ban đầu, gửi cho AI khi mở màn xây dựng ý tưởng
+  coAutoFor: "",      // truyện đã tự mở màn xây dựng ý tưởng (chỉ tự mở một lần)
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -239,6 +241,7 @@ async function archiveBook(b) {
 
 function showLibrary() {
   leaveBook();
+  S.coAutoFor = "";
   S.view = "library";
   $("#libraryView").classList.remove("hidden");
   $("#deskView").classList.add("hidden");
@@ -256,6 +259,7 @@ async function leaveBook() {
 async function openBook(id) {
   if (S.bookId === id && S.view === "desk") return;
   await leaveBook();
+  closeCoCreate();
   Object.assign(S, {
     view: "desk", bookId: id, state: null, hasBook: false, outline: null, bookSig: "",
     chapter: 0, chapterData: null, chapterNums: [], dirty: false, selection: "",
@@ -352,6 +356,16 @@ async function loadState() {
   $("#btnNext").disabled = running || s.Phase !== "writing";
   $("#liveDot").classList.toggle("hidden", !running);
 
+  $("#btnStage").classList.toggle("hidden", !S.hasBook || s.Phase === "complete");
+  $("#btnStage").textContent = data.co_stage ? "🧭 Bàn hướng đi (đang dở)" : "🧭 Bàn hướng đi";
+  // Truyện trống, chưa từng gửi ý tưởng cho engine: mở thẳng màn cùng AI xây dựng ý tưởng.
+  if (!S.hasBook && !running && !data.start_prompt && S.coAutoFor !== id) {
+    S.coAutoFor = id;
+    const idea = S.pendingIdea[id];
+    delete S.pendingIdea[id];
+    openCoCreate("start", idea);
+  }
+
   const sig = [s.Phase, s.CompletedCount, s.TotalChapters, (s.Outline || []).length, s.BookTitle, s.InProgressChapter].join("|");
   if (sig !== S.bookSig) {
     const first = S.bookSig === "";
@@ -389,7 +403,9 @@ function renderChapterList() {
   box.replaceChildren();
   if (!groups.length) {
     box.append(el("div", { class: "empty" },
-      S.hasBook ? "AI đang dựng dàn ý… Bấm ▶ Chạy AI nếu nó đang dừng." : "Truyện này chưa có dàn ý. Bấm ▶ Bắt đầu để nhập ý tưởng."));
+      S.hasBook || (S.state && S.state.Phase)
+        ? "AI đang dựng dàn ý… Bấm ▶ Chạy AI nếu nó đang dừng."
+        : "Truyện này chưa có dàn ý. Bấm ▶ Bắt đầu để cùng AI xây dựng ý tưởng."));
     return;
   }
   let lastVol = null;
@@ -751,14 +767,43 @@ function openNewDialog(targetId) {
   $("#newName").value = "";
   const mode = targetId ? currentMode() : "review";
   dlg.querySelectorAll('input[name="newMode"]').forEach((r) => (r.checked = r.value === mode));
+  dlg.querySelectorAll('input[name="newHow"]').forEach((r) => (r.checked = r.value === "cocreate"));
+  syncNewHow();
   dlg.showModal();
   (targetId ? $("#newPrompt") : $("#newName")).focus();
 }
+// "Cùng AI xây dựng": chỉ cần ý tưởng sơ bộ, chế độ AI chọn ở cuối buổi xây dựng.
+function syncNewHow() {
+  const co = dlg.querySelector('input[name="newHow"]:checked').value === "cocreate";
+  $("#newPromptLabel").textContent = co ? "Ý tưởng ban đầu (vài câu là đủ, có thể để trống)" : "Ý tưởng truyện";
+  $("#newModeField").classList.toggle("hidden", co);
+  $("#newSubmit").textContent = co ? "Bắt đầu trò chuyện với AI" : "Bắt đầu";
+}
+dlg.querySelectorAll('input[name="newHow"]').forEach((r) => r.addEventListener("change", syncNewHow));
 $("#btnLibNew").onclick = () => openNewDialog(null);
 $("#newForm").addEventListener("submit", async (e) => {
   if (e.submitter && e.submitter.value === "cancel") return;
   e.preventDefault();
   const prompt = $("#newPrompt").value.trim();
+  const co = dlg.querySelector('input[name="newHow"]:checked').value === "cocreate";
+  if (co) {
+    $("#newSubmit").disabled = true;
+    try {
+      if (S.newTarget) {
+        dlg.close();
+        openCoCreate("start", prompt);
+      } else {
+        const row = await api("api/books", { method: "POST", body: { name: $("#newName").value.trim(), cocreate: true } });
+        dlg.close();
+        S.pendingIdea[row.id] = prompt;
+        await loadBooks();
+        location.hash = `#/b/${row.id}`;
+      }
+      $("#newPrompt").value = "";
+    } catch (err) { toast(err.message, "error"); }
+    finally { $("#newSubmit").disabled = false; }
+    return;
+  }
   if (!prompt) { toast("Hãy nhập ý tưởng truyện", "error"); return; }
   const mode = dlg.querySelector('input[name="newMode"]:checked').value;
   $("#newSubmit").disabled = true;
@@ -985,7 +1030,8 @@ $("#chips").addEventListener("click", (e) => {
 });
 
 // ================= Khởi động =================
-route();
+// Chờ mọi script (settings.js, cocreate.js) nạp xong rồi mới điều hướng.
+document.addEventListener("DOMContentLoaded", route);
 setInterval(() => {
   if (document.hidden) return;
   if (S.view === "library") loadBooks();

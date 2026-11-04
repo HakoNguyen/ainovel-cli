@@ -72,6 +72,18 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 	created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, id);
+CREATE TABLE IF NOT EXISTS cocreate (
+	book_id      TEXT NOT NULL REFERENCES books(id),
+	kind         TEXT NOT NULL,
+	history      TEXT NOT NULL,
+	display      TEXT NOT NULL,
+	draft        TEXT NOT NULL DEFAULT '',
+	ready        INTEGER NOT NULL DEFAULT 0,
+	suggestions  TEXT NOT NULL DEFAULT '[]',
+	draft_edited INTEGER NOT NULL DEFAULT 0,
+	updated_at   TEXT NOT NULL,
+	PRIMARY KEY (book_id, kind)
+);
 `
 
 func openDB(path string) (*db, error) {

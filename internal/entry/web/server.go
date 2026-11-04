@@ -110,6 +110,11 @@ func Run(cfg bootstrap.Config, opts Options) error {
 	mux.HandleFunc("POST /api/books/{id}/mode", s.withBook(s.handleMode))
 	mux.HandleFunc("POST /api/books/{id}/steer", s.withBook(s.handleSteer))
 	mux.HandleFunc("POST /api/books/{id}/chat", s.withBook(s.handleChat))
+	mux.HandleFunc("GET /api/books/{id}/cocreate", s.withBook(s.handleGetCoCreate))
+	mux.HandleFunc("POST /api/books/{id}/cocreate/message", s.withBook(s.handleCoCreateMessage))
+	mux.HandleFunc("PUT /api/books/{id}/cocreate/draft", s.withBook(s.handleCoCreateDraft))
+	mux.HandleFunc("POST /api/books/{id}/cocreate/apply", s.withBook(s.handleCoCreateApply))
+	mux.HandleFunc("POST /api/books/{id}/cocreate/cancel", s.withBook(s.handleCoCreateCancel))
 
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("GET /api/settings/catalog", s.handleCatalog)
@@ -222,11 +227,21 @@ func (s *server) summarize(row bookRow) bookSummary {
 
 func (s *server) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name   string `json:"name"`
-		Prompt string `json:"prompt"`
-		Mode   string `json:"mode"`
+		Name     string `json:"name"`
+		Prompt   string `json:"prompt"`
+		Mode     string `json:"mode"`
+		CoCreate bool   `json:"cocreate"` // 只建空书，随后在页面里与 AI 共创需求
 	}
 	if !readJSON(w, r, &body) {
+		return
+	}
+	if body.CoCreate {
+		row, err := s.lib.create(body.Name)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, row)
 		return
 	}
 	if strings.TrimSpace(body.Prompt) == "" {
@@ -298,12 +313,21 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request, rt *bookRT)
 	if book != nil {
 		aiTitle = book.Title
 	}
+	startPrompt := ""
+	if meta, _ := rt.store.RunMeta.Load(); meta != nil {
+		startPrompt = meta.StartPrompt
+	}
+	coStartSess, _ := s.db.getCoCreate(rt.id, coStart)
+	coStageSess, _ := s.db.getCoCreate(rt.id, coStage)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"snapshot": snap,
-		"name":     displayName(row, aiTitle),
-		"ai_title": aiTitle,
-		"has_book": book != nil || snap.Premise != "" || len(snap.Outline) > 0,
-		"language": s.cfg.NormalizedLanguage(),
+		"snapshot":     snap,
+		"name":         displayName(row, aiTitle),
+		"ai_title":     aiTitle,
+		"start_prompt": startPrompt,
+		"co_start":     coStartSess != nil,
+		"co_stage":     coStageSess != nil,
+		"has_book":     book != nil || snap.Premise != "" || len(snap.Outline) > 0,
+		"language":     s.cfg.NormalizedLanguage(),
 	})
 }
 

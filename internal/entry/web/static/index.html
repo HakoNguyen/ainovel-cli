@@ -58,6 +58,7 @@
     <button id="btnRun" class="btn primary">▶ Chạy AI</button>
     <button id="btnPause" class="btn">⏸ Dừng</button>
     <button id="btnNext" class="btn" title="Cho AI viết chương tiếp theo làm bản tham khảo">AI viết chương kế</button>
+    <button id="btnStage" class="btn hidden" title="Tạm dừng AI và cùng nó bàn hướng đi cho phần tiếp theo">🧭 Bàn hướng đi</button>
     <a id="btnExport" class="btn ghost" href="#" title="Tải toàn bộ bản thảo của bạn (.txt)">⤓ Xuất bản thảo</a>
     <button id="btnChatToggle" class="btn ghost icon" title="Ẩn/hiện trợ lý">💬</button>
     <button class="btn ghost icon btn-settings" title="Cài đặt model & API key">⚙</button>
@@ -139,6 +140,40 @@
     </div>
   </section>
 
+  <!-- Cùng AI xây dựng ý tưởng / bàn hướng đi (thay cho khung giữa khi mở) -->
+  <section class="cocreate hidden" id="cocreate">
+    <div class="pane co-chat">
+      <div class="pane-head">
+        <div class="pane-title"><span class="who ai">AI</span><span id="coTitle">Cùng AI xây dựng ý tưởng</span></div>
+        <button id="coClose" class="btn tiny ghost" title="Đóng (giữ cuộc trò chuyện để quay lại sau)">Đóng</button>
+      </div>
+      <p class="hint co-hint" id="coHint"></p>
+      <div id="coLog" class="co-log scroll"></div>
+      <div id="coSuggest" class="chips"></div>
+      <div class="chat-input">
+        <textarea id="coText" rows="3" placeholder="Trả lời AI… (Ctrl+Enter để gửi)"></textarea>
+        <div class="chat-send">
+          <button id="coCancel" class="btn ghost">Xoá cuộc trò chuyện</button>
+          <button id="coSend" class="btn primary">Gửi</button>
+        </div>
+      </div>
+    </div>
+    <div class="pane co-draft">
+      <div class="pane-head">
+        <div class="pane-title"><span class="who me">Bản yêu cầu</span><span id="coDraftTitle">sáng tác</span></div>
+        <span id="coReady" class="pill"></span>
+      </div>
+      <textarea id="coDraft" class="co-draft-text" spellcheck="false" placeholder="Sau mỗi lượt trả lời, AI sẽ tổng hợp ý tưởng của bạn vào đây. Bạn có thể tự sửa trực tiếp, AI sẽ dựa vào bản đã sửa ở lượt sau."></textarea>
+      <div class="co-foot">
+        <div class="co-mode">
+          <label class="check"><input type="radio" name="coMode" value="review" checked> Chỉ dựng dàn ý (tôi tự viết)</label>
+          <label class="check"><input type="radio" name="coMode" value="auto"> AI viết hết</label>
+        </div>
+        <button id="coApply" class="btn primary">Bắt đầu sáng tác</button>
+      </div>
+    </div>
+  </section>
+
   <aside class="chat" id="chat">
     <div class="chat-head">
       <select id="sessionSelect" class="session-select" title="Phiên trò chuyện"></select>
@@ -179,11 +214,18 @@
       <span>Tên tạm (tuỳ chọn)</span>
       <input id="newName" type="text" maxlength="120" placeholder="AI sẽ đặt tên chính thức khi dựng xong tiền đề">
     </label>
-    <label class="field">
-      <span>Ý tưởng truyện</span>
-      <textarea id="newPrompt" rows="7" placeholder="Ví dụ: Truyện tu tiên, nam chính là đứa trẻ mồ côi ở làng chài, phát hiện mình có thể nghe tiếng biển nói. Khoảng 60 chương, giọng văn trầm, ít hài."></textarea>
-    </label>
     <fieldset class="field">
+      <span>Cách bắt đầu</span>
+      <label class="radio"><input type="radio" name="newHow" value="cocreate" checked>
+        <div><b>Cùng AI xây dựng từng bước</b><small>AI hỏi bạn từng câu về thể loại, nhân vật, thế giới, giọng văn… rồi tổng hợp thành bản yêu cầu. Bạn xem, sửa xong mới bắt đầu.</small></div></label>
+      <label class="radio"><input type="radio" name="newHow" value="direct">
+        <div><b>Tôi đã có ý tưởng đầy đủ</b><small>Gửi thẳng ý tưởng cho AI dựng truyện ngay.</small></div></label>
+    </fieldset>
+    <label class="field">
+      <span id="newPromptLabel">Ý tưởng truyện</span>
+      <textarea id="newPrompt" rows="6" placeholder="Ví dụ: Truyện tu tiên, nam chính là đứa trẻ mồ côi ở làng chài, phát hiện mình có thể nghe tiếng biển nói. Khoảng 60 chương, giọng văn trầm, ít hài."></textarea>
+    </label>
+    <fieldset class="field" id="newModeField">
       <span>AI sẽ làm gì?</span>
       <label class="radio"><input type="radio" name="newMode" value="review" checked>
         <div><b>Chỉ dựng dàn ý</b><small>AI viết tiền đề, nhân vật, thế giới, dàn ý từng chương rồi dừng. Bạn tự viết, AI ngồi bên cạnh góp ý.</small></div></label>
@@ -294,5 +336,6 @@
 <script src="vendor/quill/quill.js"></script>
 <script src="app.js"></script>
 <script src="settings.js"></script>
+<script src="cocreate.js"></script>
 </body>
 </html>

@@ -103,6 +103,7 @@ Mở **http://localhost:8765**. *(Binary: `./ainovel-cli --web --addr :8765`)*
 - **CSDL SQLite** `workspace/ainovel.db`: lưu danh sách truyện và **các phiên trò chuyện** với trợ lý của từng truyện (tạo, đổi tên, xoá phiên; tải lại trang vẫn còn lịch sử).
 
 - **Hai khung song song**: bên trái là dàn ý chương, kế hoạch chi tiết, bản AI viết và luồng AI đang viết trực tiếp; bên phải là bản thảo của bạn, tự lưu vào `<thư mục truyện>/user_drafts/NN.md` (engine không bao giờ đụng vào đây).
+- **Cùng AI xây dựng ý tưởng** (như chế độ 共创 của TUI): khi tạo truyện mới, AI hỏi từng câu về thể loại, nhân vật, thế giới, giọng văn… và cập nhật dần “bản yêu cầu sáng tác” bên phải (bạn sửa trực tiếp được). Đủ ý thì bấm “Bắt đầu sáng tác”. Với truyện đang viết, nút **🧭 Bàn hướng đi** tạm dừng AI để cùng tính phần tiếp theo rồi viết tiếp theo hướng đó. Cuộc trò chuyện được lưu trong CSDL.
 - **Chế độ “Chỉ dàn ý”**: AI dựng tiền đề, nhân vật, thế giới, dàn ý từng chương rồi dừng trước chương 1. Bạn tự viết; khi cần, bấm “AI viết chương kế” để AI viết chương tiếp theo làm bản tham khảo.
 - **Chế độ “AI viết hết”**: AI tự viết liên tục như TUI, bấm Dừng bất cứ lúc nào.
 - **Trợ lý sáng tác** (cột phải): đọc được dàn ý, nhân vật, bản AI và bản thảo của bạn. Có sẵn các nút gợi ý mở đầu, viết tiếp, nhận xét, viết lại đoạn đang bôi đen. Chuyển sang “Chỉ đạo engine AI” để ra lệnh cho engine (giống `/steer`).

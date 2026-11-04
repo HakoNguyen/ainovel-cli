@@ -1524,13 +1524,24 @@ func (h *Host) ReplayQueue(afterSeq int64) ([]domain.RuntimeQueueItem, error) {
 
 // CoCreateStream 冷启动共创：从零澄清需求，产出整本书的创作指令。
 func (h *Host) CoCreateStream(ctx context.Context, history []CoCreateMessage, onProgress func(kind, text string)) (CoCreateReply, error) {
-	return coCreateStream(ctx, h.models, h.store.Sessions, coCreateSystemPrompt, history, onProgress)
+	return coCreateStream(ctx, h.models, h.store.Sessions, coCreateSystemPrompt+h.coCreateLanguageTail(), history, onProgress)
 }
 
 // StageCoCreateStream 阶段共创：在已写内容的基础上规划后续方向。
 // 系统提示 = 阶段 prompt + 当前故事状态摘要，让助手知道"已经写了什么"。
 func (h *Host) StageCoCreateStream(ctx context.Context, history []CoCreateMessage, onProgress func(kind, text string)) (CoCreateReply, error) {
-	return coCreateStream(ctx, h.models, h.store.Sessions, stageSystemPrompt(h.store), history, onProgress)
+	return coCreateStream(ctx, h.models, h.store.Sessions, stageSystemPrompt(h.store)+h.coCreateLanguageTail(), history, onProgress)
+}
+
+// coCreateLanguageTail 让共创助手按作品语种对话：协议标签保持英文，内容跟随 language 配置。
+func (h *Host) coCreateLanguageTail() string {
+	h.mu.Lock()
+	lang := h.cfg.NormalizedLanguage()
+	h.mu.Unlock()
+	if lang != "vi" {
+		return ""
+	}
+	return "\n\n语言要求（优先于上文的“中文”字样）：用户使用越南语。<reply>、<draft>、<suggestions> 的内容一律用自然的越南语书写，标签名仍保持小写英文；<draft> 的二级标题也用越南语，例如 \"## Chủ đề\"、\"## Yếu tố chính\"、\"## Cần làm rõ\"。提示用户可以开始时，说“bấm nút Bắt đầu sáng tác (hoặc Ctrl+S)”。"
 }
 
 // stagePlanPrefix 把共创产出的"后续方向 brief"包装成一条阶段规划干预，交 Arbiter 裁定。
