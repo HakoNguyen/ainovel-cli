@@ -91,7 +91,7 @@ function renderCo(streaming) {
     chips.append(el("button", { title: "Bấm để điền vào ô trả lời", onclick: () => { const t = $("#coText"); t.value = s; t.focus(); } }, s));
   }
   $("#coSend").disabled = CO.busy;
-  $("#coApply").disabled = CO.busy || !($("#coDraft").value.trim());
+  $("#coApply").disabled = CO.busy || S.starting || !($("#coDraft").value.trim());
 }
 
 async function coSend(text) {

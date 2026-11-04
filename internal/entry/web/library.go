@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/voocel/ainovel-cli/assets"
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
@@ -37,6 +38,9 @@ type bookRT struct {
 	cfg   bootstrap.Config
 	stale bool      // 配置已变更，等引擎停下后用新配置重开；仅在 library.mu 下读写
 	guard loopGuard // 复读检测；只在 pump goroutine 内使用
+	// starting 覆盖启动裁定 / 恢复前裁定这段"引擎还没进 running、但已经在启动"的窗口。
+	// 网络慢时这段要几十秒，期间再点开始/继续会并发拉起引擎。
+	starting atomic.Bool
 }
 
 func newLibrary(cfg bootstrap.Config, d *db, root string) *library {
@@ -92,7 +96,7 @@ func (l *library) runtime(id string) (*bookRT, error) {
 	}
 	var shared *hub
 	if ok {
-		if rt.eng.Snapshot().IsRunning {
+		if rt.eng.Snapshot().IsRunning || rt.starting.Load() {
 			return rt, nil
 		}
 		rt.eng.Close()
@@ -159,7 +163,7 @@ func (l *library) runningCount() int {
 	defer l.mu.Unlock()
 	n := 0
 	for _, rt := range l.open {
-		if rt.eng.Snapshot().IsRunning {
+		if rt.eng.Snapshot().IsRunning || rt.starting.Load() {
 			n++
 		}
 	}

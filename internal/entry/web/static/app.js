@@ -365,12 +365,15 @@ async function loadState() {
   // Đã gửi ý tưởng cho engine (kể cả khi AI chưa kịp lưu tiền đề) thì chỉ cần chạy tiếp, không nhập lại.
   S.canResume = S.hasBook || !!data.start_prompt;
   const s = S.state;
-  const running = s.IsRunning || s.RuntimeState === "running";
+  // starting: đang gọi AI trọng tài để khởi động/tiếp tục (mạng chậm có thể mất vài chục giây);
+  // engine chưa "running" nhưng không được bấm khởi động thêm lần nữa.
+  S.starting = !!data.starting;
+  const running = s.IsRunning || s.RuntimeState === "running" || S.starting;
   const title = data.name || s.BookTitle || "Truyện chưa đặt tên";
 
   $("#bookTitle").textContent = title;
   document.title = title + " – ainovel";
-  let txt = STATE_TEXT[s.RuntimeState] || s.RuntimeState || "—";
+  let txt = S.starting ? "AI đang khởi động (đang chọn cách dựng truyện)…" : STATE_TEXT[s.RuntimeState] || s.RuntimeState || "—";
   if (s.Phase && PHASE_TEXT[s.Phase]) txt += " · giai đoạn " + PHASE_TEXT[s.Phase];
   if (s.TotalChapters) txt += ` · AI đã viết ${s.CompletedCount}/${s.TotalChapters} chương`;
   if (s.TotalCostUSD > 0) txt += ` · $${s.TotalCostUSD.toFixed(3)}`;
@@ -381,7 +384,7 @@ async function loadState() {
   $("#btnRun").disabled = running;
   $("#btnRun").textContent = S.canResume ? "▶ Tiếp tục" : "▶ Bắt đầu";
   $("#btnRun").title = S.canResume ? "Cho AI chạy tiếp từ chỗ đã dừng" : "Nhập ý tưởng để AI bắt đầu dựng truyện";
-  $("#btnPause").disabled = !running;
+  $("#btnPause").disabled = !running || S.starting; // đang khởi động thì engine chưa chạy, Dừng không có tác dụng
   $("#btnNext").classList.toggle("hidden", s.AdvanceMode !== "review");
   $("#btnNext").disabled = running || s.Phase !== "writing";
   $("#liveDot").classList.toggle("hidden", !running);
@@ -1086,5 +1089,5 @@ document.addEventListener("DOMContentLoaded", route);
 setInterval(() => {
   if (document.hidden) return;
   if (S.view === "library") loadBooks();
-  else if (S.state && (S.state.IsRunning || S.state.RuntimeState === "pausing")) loadState();
+  else if (S.starting || (S.state && (S.state.IsRunning || S.state.RuntimeState === "pausing"))) loadState();
 }, 5000);

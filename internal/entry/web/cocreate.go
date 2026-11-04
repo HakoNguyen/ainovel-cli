@@ -282,6 +282,9 @@ func (s *server) handleCoCreateApply(w http.ResponseWriter, r *http.Request, rt 
 		writeErr(w, http.StatusConflict, err)
 		return
 	}
+	if refuseWhileStarting(w, rt) {
+		return
+	}
 
 	switch kind {
 	case coStart:
@@ -291,7 +294,7 @@ func (s *server) handleCoCreateApply(w http.ResponseWriter, r *http.Request, rt 
 			return
 		}
 		if err := s.startBook(rt, prompt, body.Mode); err != nil {
-			writeErr(w, http.StatusInternalServerError, err)
+			writeErr(w, statusOf(err), err)
 			return
 		}
 	case coStage:

@@ -265,7 +265,7 @@ func (s *server) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.startBook(rt, prompt, body.Mode); err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, statusOf(err), err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, row)
@@ -327,6 +327,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request, rt *bookRT)
 		"start_prompt": startPrompt,
 		"co_start":     coStartSess != nil,
 		"co_stage":     coStageSess != nil,
+		"starting":     rt.starting.Load(),
 		"has_book":     book != nil || snap.Premise != "" || len(snap.Outline) > 0,
 		"language":     s.cfg.NormalizedLanguage(),
 	})
@@ -568,11 +569,16 @@ func modeOf(s string) domain.ChapterAdvanceMode {
 
 // startBook 设置推进模式后在后台发起启动裁定；结果和错误都经事件流回到页面。
 func (s *server) startBook(rt *bookRT, prompt, mode string) error {
+	if !rt.starting.CompareAndSwap(false, true) {
+		return errStarting
+	}
 	if err := rt.eng.SetAdvanceMode(modeOf(mode)); err != nil {
+		rt.starting.Store(false)
 		return err
 	}
 	s.db.touchBook(rt.id)
 	go func() {
+		defer rt.starting.Store(false)
 		if err := rt.eng.PrepareUserRules(prompt); err != nil {
 			rt.hub.publishError("Chuẩn bị quy tắc thất bại: " + err.Error())
 			return
@@ -582,6 +588,17 @@ func (s *server) startBook(rt *bookRT, prompt, mode string) error {
 		}
 	}()
 	return nil
+}
+
+var errStarting = errors.New("AI đang khởi động truyện này (đang chọn cách dựng truyện), đợi vài giây rồi thử lại")
+
+// refuseWhileStarting 在启动窗口内拒绝会拉起引擎的操作，避免两次启动交叠。
+func refuseWhileStarting(w http.ResponseWriter, rt *bookRT) bool {
+	if rt.starting.Load() {
+		writeErr(w, http.StatusConflict, errStarting)
+		return true
+	}
+	return false
 }
 
 // handleStart 只用于还没有作品信息的书（例如上次启动裁定失败）。已有作品请用 resume。
@@ -603,7 +620,7 @@ func (s *server) handleStart(w http.ResponseWriter, r *http.Request, rt *bookRT)
 		return
 	}
 	if err := s.startBook(rt, prompt, body.Mode); err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeErr(w, statusOf(err), err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
@@ -616,14 +633,21 @@ func (s *server) handleResume(w http.ResponseWriter, r *http.Request, rt *bookRT
 	if !readJSON(w, r, &body) {
 		return
 	}
+	// Resume 可能先同步裁定待处理干预（要调模型），同样算作启动窗口。
+	if !rt.starting.CompareAndSwap(false, true) {
+		writeErr(w, http.StatusConflict, errStarting)
+		return
+	}
 	if body.Mode != "" {
 		if err := rt.eng.SetAdvanceMode(modeOf(body.Mode)); err != nil {
+			rt.starting.Store(false)
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
 	s.db.touchBook(rt.id)
 	go func() {
+		defer rt.starting.Store(false)
 		label, err := rt.eng.Resume()
 		switch {
 		case err != nil:
@@ -640,6 +664,9 @@ func (s *server) handlePause(w http.ResponseWriter, r *http.Request, rt *bookRT)
 }
 
 func (s *server) handleNext(w http.ResponseWriter, r *http.Request, rt *bookRT) {
+	if refuseWhileStarting(w, rt) {
+		return
+	}
 	if err := rt.eng.AdvanceOneChapter(); err != nil {
 		writeErr(w, http.StatusConflict, err)
 		return
@@ -663,6 +690,9 @@ func (s *server) handleMode(w http.ResponseWriter, r *http.Request, rt *bookRT) 
 }
 
 func (s *server) handleSteer(w http.ResponseWriter, r *http.Request, rt *bookRT) {
+	if refuseWhileStarting(w, rt) {
+		return
+	}
 	var body struct {
 		Text      string `json:"text"`
 		SessionID int64  `json:"session_id"`
@@ -728,6 +758,9 @@ func writeErr(w http.ResponseWriter, status int, err error) {
 func statusOf(err error) int {
 	if errors.Is(err, errNotFound) {
 		return http.StatusNotFound
+	}
+	if errors.Is(err, errStarting) {
+		return http.StatusConflict
 	}
 	return http.StatusInternalServerError
 }
