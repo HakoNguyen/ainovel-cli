@@ -162,16 +162,28 @@ async function loadCatalog(provider) {
   $("#pfCatalogHint").textContent = ST.catalog.length ? `Danh mục có ${ST.catalog.length} model. Trên OpenRouter có thể gõ tay model miễn phí có đuôi “:free” (giới hạn số lượt).` : "";
 }
 
-$("#pfCatalogAdd").onclick = () => {
+// Đưa model đang gõ trong ô tìm kiếm vào danh sách (người dùng hay gõ ở đây rồi bấm Lưu luôn).
+function addCatalogModel() {
   const id = $("#pfCatalog").value.trim();
   if (!id) return;
   const lines = $("#pfModels").value.split("\n").map((x) => x.trim()).filter(Boolean);
   if (!lines.includes(id)) lines.push(id);
   $("#pfModels").value = lines.join("\n");
   $("#pfCatalog").value = "";
-};
+}
+$("#pfCatalogAdd").onclick = addCatalogModel;
+$("#pfCatalog").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addCatalogModel(); }
+});
+
+function formMessage(kind, text) {
+  const out = $("#pfTestResult");
+  out.className = "hint " + kind;
+  out.textContent = text;
+}
 
 function providerDraft() {
+  addCatalogModel();
   const p = ST.editing;
   const name = p ? p.name : ($("#pfPreset").value === "custom" ? $("#pfName").value.trim() : $("#pfPreset").value);
   const key = $("#pfKey").value.trim();
@@ -186,26 +198,30 @@ function providerDraft() {
 }
 
 $("#pfTest").onclick = async () => {
-  const out = $("#pfTestResult");
-  out.className = "hint";
-  out.textContent = "Đang gửi một request nhỏ để kiểm tra…";
+  const draft = providerDraft();
+  formMessage("", "Đang gửi một request nhỏ để kiểm tra…");
   $("#pfTest").disabled = true;
   try {
-    const r = await api("api/settings/test", { method: "POST", body: providerDraft() });
-    out.className = "hint ok";
-    out.textContent = `✓ Kết nối được ${r.model} (${r.ms} ms). Trả lời: “${r.reply}”`;
+    const r = await api("api/settings/test", { method: "POST", body: draft });
+    formMessage("ok", `✓ Kết nối được ${r.model} (${r.ms} ms). Trả lời: “${r.reply}”`);
   } catch (e) {
-    out.className = "hint err";
-    out.textContent = "✗ " + e.message;
+    formMessage("err", "✗ " + e.message);
   } finally { $("#pfTest").disabled = false; }
 };
 
 $("#providerForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const draft = providerDraft();
+  $("#pfSave").disabled = true;
+  formMessage("", "Đang lưu…");
   try {
-    await api("api/settings/provider", { method: "PUT", body: providerDraft() });
-    toast("Đã lưu nhà cung cấp");
+    await api("api/settings/provider", { method: "PUT", body: draft });
+    const name = draft.provider;
+    toast(`Đã lưu “${name}”. Chọn model của nó ở mục “Model đang dùng” để bắt đầu dùng.`);
     $("#providerForm").classList.add("hidden");
     await loadSettings();
-  } catch (err) { toast(err.message, "error"); }
+  } catch (err) {
+    formMessage("err", "✗ Chưa lưu được: " + err.message);
+    toast(err.message, "error");
+  } finally { $("#pfSave").disabled = false; }
 });

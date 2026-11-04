@@ -280,6 +280,10 @@ button, select, textarea, input { font: inherit; color: inherit; }
 
 /* ---------- Toasts ---------- */
 .toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 50; pointer-events: none; }
+/* popover mặc định căn giữa có viền/nền: trả về kiểu hộp toast */
+.toasts[popover] { inset: auto; bottom: 16px; left: 50%; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; color: inherit; }
+.toasts[popover]:not(:popover-open) { display: none; }
+.toasts[popover]:popover-open { display: flex; }
 .toast { background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow); max-width: 80vw; animation: fadein .2s; }
 .toast.error { background: var(--err); color: #fff; }
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }

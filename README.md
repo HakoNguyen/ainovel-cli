@@ -90,9 +90,19 @@ Lần đầu chạy, hệ thống sẽ tự động bật **Setup Wizard tương
 
 ### Bàn viết trên trình duyệt (Web UI)
 
-Sau khi đã có `config/config.json` (chạy TUI một lần để hoàn tất Setup Wizard):
+Web UI nằm ở nhánh `feat/web-editor` (nhánh `main` là bản gốc chưa có web). Clone đúng nhánh:
 
 ```bash
+git clone -b feat/web-editor https://github.com/HakoNguyen/ainovel-cli.git
+cd ainovel-cli
+mkdir -p config workspace
+docker compose build
+```
+
+Chạy TUI **một lần** để hoàn tất Setup Wizard (tạo `config/config.json`), thoát ra rồi bật web:
+
+```bash
+docker compose run --rm ainovel
 docker compose up -d web
 ```
 

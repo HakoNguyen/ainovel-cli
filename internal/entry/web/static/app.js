@@ -65,10 +65,19 @@ async function api(path, opts = {}) {
 }
 const bookApi = (path, opts) => api(`api/books/${S.bookId}/${path}`, opts);
 
+// Hộp toast là popover nên nằm ở "top layer": mở lại mỗi lần để luôn nổi trên các <dialog> đang mở,
+// nếu không thông báo lỗi sẽ bị hộp thoại che mất.
 function toast(msg, kind = "") {
+  const box = $("#toasts");
   const t = el("div", { class: "toast " + kind }, msg);
-  $("#toasts").append(t);
-  setTimeout(() => t.remove(), kind === "error" ? 6000 : 3000);
+  box.append(t);
+  if (box.showPopover) {
+    try { if (box.matches(":popover-open")) box.hidePopover(); box.showPopover(); } catch { /* trình duyệt cũ */ }
+  }
+  setTimeout(() => {
+    t.remove();
+    if (!box.children.length && box.hidePopover) { try { box.hidePopover(); } catch { /* */ } }
+  }, kind === "error" ? 6000 : 3000);
 }
 
 function debounce(fn, ms) {
