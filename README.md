@@ -17,6 +17,7 @@
 - 🌐 **Tùy chọn Ngôn ngữ sáng tác truyện**: Hỗ trợ viết truyện bằng **Tiếng Việt (mặc định)** hoặc **Tiếng Trung nguyên bản** qua trường `"language": "vi"` hoặc `"language": "zh"` trong cấu hình.
 - 🦙 **Tích hợp sẵn Ollama Local**: Hỗ trợ chạy 100% offline, miễn phí không tốn tiền API với các model mã nguồn mở chạy trên GPU nội bộ (Qwen 2.5 / 3.5, Llama, v.v.).
 - ✍️ **Bộ Prompt song ngữ & Văn phong chống AI sáo rỗng**: 14 prompt hệ thống được tinh chỉnh kỹ lưỡng, kèm file quy chuẩn văn phong tiểu thuyết Tiếng Việt (`assets/voice.md`) giúp hành văn sống động, gãy gọn, có chiều sâu, bài trừ các mẫu câu sáo rỗng của AI.
+- 🖥️ **Bàn viết trên trình duyệt (nhánh `feat/web-editor`)**: thư viện nhiều truyện, khung AI và khung tác giả song song, cùng AI xây dựng ý tưởng, trợ lý sáng tác lưu phiên, cài đặt model ngay trên web — xem [Bàn viết trên trình duyệt](#bàn-viết-trên-trình-duyệt-web-ui).
 - 🚀 **Đồng bộ toàn diện Upstream mới nhất**: Sở hữu đầy đủ kiến trúc Đa Agent (`Coordinator` → `Architect` → `Writer` → `Editor` → `Arbiter`), Prompt Caching 3 tầng, quy hoạch cuộn 2 tầng (Rolling planning), điểm phục hồi step-level, và toàn bộ 14 lệnh slash commands.
 
 ---
@@ -108,16 +109,52 @@ docker compose up -d web
 
 Mở **http://localhost:8765**. *(Binary: `./ainovel-cli --web --addr :8765`)*
 
-- **Thư viện truyện**: trang chủ liệt kê mọi truyện kèm trạng thái (AI đang chạy, đã viết bao nhiêu chương, bạn đã viết bao nhiêu chữ). Mỗi truyện có thư mục riêng `workspace/books/<id>/` và Host riêng, nên **nhiều truyện có thể để AI chạy cùng lúc**. Truyện cũ ở `workspace/output/novel` (tạo từ TUI) được tự động đưa vào thư viện.
-- **Đổi tên / ẩn / khôi phục**: tên bạn đặt trong thư viện được ưu tiên hơn tên AI đặt (không sửa file truyện). Truyện bị ẩn nằm ở mục “Truyện đã ẩn” cuối trang thư viện; nút 🗑 / “Xoá vĩnh viễn” xoá hẳn truyện (cả thư mục trên đĩa và lịch sử trò chuyện, phải gõ XOA để xác nhận); nút “🔍 Tìm truyện trên đĩa” đưa các thư mục truyện có sẵn trong `workspace/` vào thư viện.
-- **CSDL SQLite** `workspace/ainovel.db`: lưu danh sách truyện và **các phiên trò chuyện** với trợ lý của từng truyện (tạo, đổi tên, xoá phiên; tải lại trang vẫn còn lịch sử).
+<p align="center">
+  <img src="docs/screenshots/desk-light.png" alt="Bàn viết: dàn ý chương bên trái, bản thảo của bạn bên phải, trợ lý sáng tác ở cột phải" width="900">
+</p>
 
-- **Hai khung song song**: bên trái là dàn ý chương, kế hoạch chi tiết, bản AI viết và luồng AI đang viết trực tiếp; bên phải là bản thảo của bạn, tự lưu vào `<thư mục truyện>/user_drafts/NN.md` (engine không bao giờ đụng vào đây).
-- **Cùng AI xây dựng ý tưởng** (như chế độ 共创 của TUI): khi tạo truyện mới, AI hỏi từng câu về thể loại, nhân vật, thế giới, giọng văn… và cập nhật dần “bản yêu cầu sáng tác” bên phải (bạn sửa trực tiếp được). Đủ ý thì bấm “Bắt đầu sáng tác”. Với truyện đang viết, nút **🧭 Bàn hướng đi** tạm dừng AI để cùng tính phần tiếp theo rồi viết tiếp theo hướng đó. Cuộc trò chuyện được lưu trong CSDL.
-- **Chế độ “Chỉ dàn ý”**: AI dựng tiền đề, nhân vật, thế giới, dàn ý từng chương rồi dừng trước chương 1. Bạn tự viết; khi cần, bấm “AI viết chương kế” để AI viết chương tiếp theo làm bản tham khảo.
-- **Chế độ “AI viết hết”**: AI tự viết liên tục như TUI, bấm Dừng bất cứ lúc nào.
-- **Trợ lý sáng tác** (cột phải): đọc được dàn ý, nhân vật, bản AI và bản thảo của bạn. Có sẵn các nút gợi ý mở đầu, viết tiếp, nhận xét, viết lại đoạn đang bôi đen. Chuyển sang “Chỉ đạo engine AI” để ra lệnh cho engine (giống `/steer`).
-- **Xuất bản thảo**: tải toàn bộ các chương bạn viết thành một file `.txt`.
+#### 📚 Thư viện truyện
+
+<p align="center"><img src="docs/screenshots/library.png" alt="Thư viện truyện" width="760"></p>
+
+- Trang chủ liệt kê mọi truyện kèm trạng thái: AI đang chạy, AI đã viết bao nhiêu chương, bạn đã viết bao nhiêu chương/chữ, chế độ đang dùng.
+- Mỗi truyện có thư mục riêng `workspace/books/<id>/` và Host riêng, nên **nhiều truyện có thể để AI chạy cùng lúc**. Truyện cũ ở `workspace/output/novel` (tạo từ TUI) được tự động đưa vào thư viện.
+- **Đổi tên / ẩn / khôi phục / xoá**: tên bạn đặt được ưu tiên hơn tên AI đặt (không sửa file truyện). Truyện bị ẩn nằm ở mục “Truyện đã ẩn” cuối trang; nút 🗑 xoá hẳn truyện (cả thư mục trên đĩa và lịch sử trò chuyện, phải gõ `XOA` để xác nhận); “🔍 Tìm truyện trên đĩa” đưa các thư mục truyện có sẵn trong `workspace/` vào thư viện.
+
+#### ✍️ Bàn viết hai khung
+
+- **Khung AI** (giữa trái): dàn ý chương (sự kiện chính, các cảnh, móc cuối chương, nhịp bắt buộc), **Bản AI viết** và tab **Trực tiếp** xem AI đang viết theo thời gian thực.
+- **Khung Bạn** (giữa phải): trình soạn thảo có định dạng (hoàn tác, tiêu đề, đậm/nghiêng/gạch chân, trích dẫn, căn lề, danh sách, chèn ảnh). Tự lưu vào `<thư mục truyện>/user_drafts/`, engine không bao giờ ghi đè.
+- **Dùng làm bản chính thức**: với chương AI đã chốt, thay bằng bản của bạn. Engine đọc lại để cập nhật tóm tắt, nhân vật, mốc thời gian, học giọng văn của bạn; các chương AI viết sau **nối tiếp bản của bạn**.
+- **Trợ lý sáng tác** (cột phải): đọc được dàn ý, nhân vật, bản AI và bản thảo của bạn; có nút gợi ý mở đầu, viết tiếp, nhận xét, viết lại đoạn đang bôi đen, “Chèn vào bản thảo”. Mỗi truyện có nhiều **phiên trò chuyện** lưu trong SQLite (`workspace/ainovel.db`). Chuyển sang “Chỉ đạo engine AI” để ra lệnh cho engine (giống `/steer`).
+- **Hai chế độ**: “Chỉ dàn ý” (AI dựng tiền đề, nhân vật, thế giới, dàn ý rồi dừng; bấm “AI viết chương kế” khi cần một chương tham khảo) hoặc “AI viết hết” (viết liên tục tới khi bấm Dừng).
+- **Xuất bản thảo**: tải toàn bộ các chương bạn viết thành file `.txt`.
+
+#### 🧭 Cùng AI xây dựng ý tưởng
+
+<p align="center"><img src="docs/screenshots/cocreate.png" alt="Cùng AI xây dựng ý tưởng: hỏi đáp bên trái, bản yêu cầu sáng tác bên phải" width="900"></p>
+
+Như chế độ 共创 của TUI: khi tạo truyện mới, AI hỏi từng câu về thể loại, nhân vật, thế giới, giọng văn… kèm gợi ý trả lời, và cập nhật dần **bản yêu cầu sáng tác** bên phải (sửa trực tiếp được). Đủ ý thì chọn chế độ và bấm “Bắt đầu sáng tác”. Với truyện đang viết, nút **🧭 Bàn hướng đi** tạm dừng AI để cùng tính phần tiếp theo rồi viết tiếp theo hướng đó. *(Ảnh dùng nội dung minh hoạ.)*
+
+#### ⚙️ Cài đặt model & API key ngay trên web
+
+<p align="center"><img src="docs/screenshots/settings.png" alt="Cài đặt model và nhà cung cấp" width="560"></p>
+
+- Chọn model mặc định và model riêng cho **Kiến trúc sư / Người viết / Biên tập**; đặt **giới hạn chi phí mỗi truyện**.
+- Thêm/sửa nhà cung cấp (OpenRouter, DeepSeek, Gemini, Claude, OpenAI, Ollama, proxy…), dán API key, tìm model trong danh mục kèm giá, **Kiểm tra kết nối** trước khi lưu. API key không bao giờ gửi xuống trình duyệt.
+- Xem **số dư OpenRouter** (đã nạp, đã dùng, hạn mức của key) để biết vì sao bị lỗi 402.
+- Lưu vào `config/config.json`, dùng chung với TUI.
+
+#### 🌙 Giao diện tối
+
+<p align="center"><img src="docs/screenshots/desk-dark.png" alt="Bàn viết ở giao diện tối" width="900"></p>
+
+Tự theo chế độ sáng/tối của hệ điều hành. Font chữ được nhúng sẵn (Be Vietnam Pro, Literata), web chạy không cần mạng ngoài trừ lúc gọi AI.
+
+#### 🛡️ Tự bảo vệ khi chạy AI
+
+- Tự **dừng engine khi model lặp chữ vô nghĩa** (ví dụ `"the "the "the…`) để khỏi đốt tiền tới hết giới hạn token.
+- Chặn bấm khởi động trùng khi mạng chậm; mạng chập chờn thì engine tự thử lại.
 
 ---
 
