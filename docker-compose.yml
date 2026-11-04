@@ -8,3 +8,15 @@ services:
       - ./workspace:/workspace
     stdin_open: true
     tty: true
+
+  # Giao diện web: docker compose up web  →  http://localhost:8765
+  web:
+    image: ghcr.io/voocel/ainovel-cli:latest
+    build:
+      context: .
+    command: ["--web", "--addr", ":8080"]
+    ports:
+      - "127.0.0.1:8765:8080"
+    volumes:
+      - ./config:/root/.ainovel
+      - ./workspace:/workspace

@@ -88,6 +88,25 @@ docker compose run --rm ainovel
 
 Lần đầu chạy, hệ thống sẽ tự động bật **Setup Wizard tương tác bằng Tiếng Việt** để bạn chọn Provider, nhập API Key/Base URL, chọn Model và Ngôn ngữ sáng tác.
 
+### Bàn viết trên trình duyệt (Web UI)
+
+Sau khi đã có `config/config.json` (chạy TUI một lần để hoàn tất Setup Wizard):
+
+```bash
+docker compose up -d web
+```
+
+Mở **http://localhost:8765**. *(Binary: `./ainovel-cli --web --addr :8765`)*
+
+- **Thư viện truyện**: trang chủ liệt kê mọi truyện kèm trạng thái (AI đang chạy, đã viết bao nhiêu chương, bạn đã viết bao nhiêu chữ). Mỗi truyện có thư mục riêng `workspace/books/<id>/` và Host riêng, nên **nhiều truyện có thể để AI chạy cùng lúc**. Truyện cũ ở `workspace/output/novel` (tạo từ TUI) được tự động đưa vào thư viện.
+- **CSDL SQLite** `workspace/ainovel.db`: lưu danh sách truyện và **các phiên trò chuyện** với trợ lý của từng truyện (tạo, đổi tên, xoá phiên; tải lại trang vẫn còn lịch sử).
+
+- **Hai khung song song**: bên trái là dàn ý chương, kế hoạch chi tiết, bản AI viết và luồng AI đang viết trực tiếp; bên phải là bản thảo của bạn, tự lưu vào `<thư mục truyện>/user_drafts/NN.md` (engine không bao giờ đụng vào đây).
+- **Chế độ “Chỉ dàn ý”**: AI dựng tiền đề, nhân vật, thế giới, dàn ý từng chương rồi dừng trước chương 1. Bạn tự viết; khi cần, bấm “AI viết chương kế” để AI viết chương tiếp theo làm bản tham khảo.
+- **Chế độ “AI viết hết”**: AI tự viết liên tục như TUI, bấm Dừng bất cứ lúc nào.
+- **Trợ lý sáng tác** (cột phải): đọc được dàn ý, nhân vật, bản AI và bản thảo của bạn. Có sẵn các nút gợi ý mở đầu, viết tiếp, nhận xét, viết lại đoạn đang bôi đen. Chuyển sang “Chỉ đạo engine AI” để ra lệnh cho engine (giống `/steer`).
+- **Xuất bản thảo**: tải toàn bộ các chương bạn viết thành một file `.txt`.
+
 ---
 
 ## 3. Tùy Chọn Ngôn Ngữ Sáng Tác

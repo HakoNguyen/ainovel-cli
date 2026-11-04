@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ainovel – Bàn viết</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap&subset=vietnamese">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ===================== Thư viện ===================== -->
+<div id="libraryView" class="view">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✒</span>
+      <div>
+        <div class="book-title">Thư viện truyện</div>
+        <div class="status-line" id="libSummary">Đang tải…</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost btn-settings" title="Cài đặt model & API key">⚙ Cài đặt</button>
+      <button id="btnLibNew" class="btn primary">＋ Truyện mới</button>
+    </div>
+  </header>
+  <main class="library scroll">
+    <div id="bookGrid" class="book-grid"></div>
+  </main>
+</div>
+
+<!-- ===================== Bàn viết ===================== -->
+<div id="deskView" class="view hidden">
+<header class="topbar">
+  <div class="brand">
+    <button id="btnBack" class="btn ghost icon" title="Về thư viện">←</button>
+    <div class="book-switch">
+      <button id="bookSwitch" class="book-title switch-btn" title="Chuyển truyện"><span id="bookTitle">…</span> <span class="caret">▾</span></button>
+      <div id="bookMenu" class="menu hidden"></div>
+      <div id="statusLine" class="status-line"><span id="statusDot" class="dot"></span><span id="statusText">Đang kết nối…</span></div>
+    </div>
+  </div>
+
+  <div class="mode-switch" role="radiogroup" aria-label="Chế độ AI">
+    <button data-mode="review" class="seg" role="radio" title="AI chỉ dựng dàn ý, nhân vật, thế giới rồi dừng. Bạn tự viết từng chương.">Chỉ dàn ý</button>
+    <button data-mode="auto" class="seg" role="radio" title="AI tự viết toàn bộ truyện từ đầu đến cuối.">AI viết hết</button>
+  </div>
+
+  <div class="actions">
+    <button id="btnRun" class="btn primary">▶ Chạy AI</button>
+    <button id="btnPause" class="btn">⏸ Dừng</button>
+    <button id="btnNext" class="btn" title="Cho AI viết chương tiếp theo làm bản tham khảo">AI viết chương kế</button>
+    <a id="btnExport" class="btn ghost" href="#" title="Tải toàn bộ bản thảo của bạn (.txt)">⤓ Xuất bản thảo</a>
+    <button id="btnChatToggle" class="btn ghost icon" title="Ẩn/hiện trợ lý">💬</button>
+    <button class="btn ghost icon btn-settings" title="Cài đặt model & API key">⚙</button>
+  </div>
+</header>
+
+<main class="layout" id="layout">
+  <aside class="sidebar">
+    <nav class="tabs" data-tabs="side">
+      <button data-tab="chapters" class="active">Chương</button>
+      <button data-tab="bible">Thiết lập</button>
+      <button data-tab="activity">Hoạt động <span id="actBadge" class="badge hidden"></span></button>
+    </nav>
+    <section data-panel="chapters" class="panel active scroll" id="chapterList"></section>
+    <section data-panel="bible" class="panel scroll" id="bible"></section>
+    <section data-panel="activity" class="panel scroll" id="activity"></section>
+  </aside>
+
+  <section class="desk">
+    <div class="pane ai-pane">
+      <div class="pane-head">
+        <div class="pane-title"><span class="who ai">AI</span><span id="aiChapterLabel">—</span></div>
+        <nav class="tabs small" data-tabs="ai">
+          <button data-tab="outline" class="active">Dàn ý chương</button>
+          <button data-tab="aitext">Bản AI viết</button>
+          <button data-tab="live">Trực tiếp <span id="liveDot" class="dot live hidden"></span></button>
+        </nav>
+      </div>
+      <div data-panel="outline" class="panel active scroll reading" id="aiOutline"></div>
+      <div data-panel="aitext" class="panel scroll reading" id="aiText"></div>
+      <div data-panel="live" class="panel scroll reading mono-ish" id="aiLive"></div>
+    </div>
+
+    <div class="splitter" id="splitter" title="Kéo để đổi độ rộng"></div>
+
+    <div class="pane me-pane">
+      <div class="pane-head">
+        <div class="pane-title"><span class="who me">Bạn</span><span id="meChapterLabel">Chọn một chương bên trái</span></div>
+        <div class="pane-tools">
+          <button id="btnPrevCh" class="btn tiny ghost" title="Chương trước">‹</button>
+          <button id="btnNextCh" class="btn tiny ghost" title="Chương sau">›</button>
+        </div>
+      </div>
+      <textarea id="editor" class="editor" spellcheck="false" placeholder="Chọn một chương rồi bắt đầu viết ở đây. Nhìn dàn ý bên trái mà viết. Bôi đen một đoạn rồi hỏi trợ lý để được góp ý riêng đoạn đó." disabled></textarea>
+      <div class="pane-foot">
+        <span id="wordCount">0 chữ</span>
+        <span id="saveState" class="muted">—</span>
+      </div>
+    </div>
+  </section>
+
+  <aside class="chat" id="chat">
+    <div class="chat-head">
+      <select id="sessionSelect" class="session-select" title="Phiên trò chuyện"></select>
+      <div class="session-tools">
+        <button id="btnSessNew" class="btn tiny ghost" title="Phiên mới">＋</button>
+        <button id="btnSessRename" class="btn tiny ghost" title="Đổi tên phiên">✎</button>
+        <button id="btnSessDelete" class="btn tiny ghost" title="Xoá phiên">🗑</button>
+      </div>
+    </div>
+    <div id="chatLog" class="chat-log scroll"></div>
+    <div class="chips" id="chips">
+      <button data-q="Gợi ý 3 cách mở đầu chương này, mỗi cách 2-3 câu, khác nhau về nhịp.">Gợi ý mở đầu</button>
+      <button data-q="Viết tiếp khoảng 150-250 chữ nối liền đoạn cuối bản thảo của tôi, giữ đúng giọng văn của tôi.">Viết tiếp giúp</button>
+      <button data-q="Nhận xét bản thảo chương này của tôi so với dàn ý: chỗ nào lệch, thiếu nhịp nào bắt buộc, câu nào yếu. Trích cụ thể.">Nhận xét bản thảo</button>
+      <button data-q="Viết lại đoạn tôi đang bôi đen cho gọn và sống hơn, đưa 2 phương án." data-needs-sel="1">Viết lại đoạn chọn</button>
+      <button data-q="Tôi bị bí. Đặt cho tôi 3 câu hỏi để gỡ bí cho cảnh tiếp theo.">Đang bí</button>
+    </div>
+    <div class="chat-input">
+      <div id="selInfo" class="sel-info hidden"></div>
+      <textarea id="chatText" rows="3" placeholder="Nhập câu hỏi… (Ctrl+Enter để gửi)"></textarea>
+      <div class="chat-send">
+        <select id="chatTarget" title="Gửi cho ai">
+          <option value="assist">Hỏi trợ lý</option>
+          <option value="steer">Chỉ đạo engine AI</option>
+        </select>
+        <button id="btnSend" class="btn primary">Gửi</button>
+      </div>
+    </div>
+  </aside>
+</main>
+</div>
+
+<!-- Hộp thoại truyện mới / bắt đầu truyện trống -->
+<dialog id="newDialog" class="dialog">
+  <form method="dialog" id="newForm">
+    <h2 id="newTitle">Truyện mới</h2>
+    <label class="field" id="newNameField">
+      <span>Tên tạm (tuỳ chọn)</span>
+      <input id="newName" type="text" maxlength="120" placeholder="AI sẽ đặt tên chính thức khi dựng xong tiền đề">
+    </label>
+    <label class="field">
+      <span>Ý tưởng truyện</span>
+      <textarea id="newPrompt" rows="7" placeholder="Ví dụ: Truyện tu tiên, nam chính là đứa trẻ mồ côi ở làng chài, phát hiện mình có thể nghe tiếng biển nói. Khoảng 60 chương, giọng văn trầm, ít hài."></textarea>
+    </label>
+    <fieldset class="field">
+      <span>AI sẽ làm gì?</span>
+      <label class="radio"><input type="radio" name="newMode" value="review" checked>
+        <div><b>Chỉ dựng dàn ý</b><small>AI viết tiền đề, nhân vật, thế giới, dàn ý từng chương rồi dừng. Bạn tự viết, AI ngồi bên cạnh góp ý.</small></div></label>
+      <label class="radio"><input type="radio" name="newMode" value="auto">
+        <div><b>AI viết hết</b><small>AI tự viết toàn bộ truyện, bạn theo dõi và chỉ đạo khi cần. Tốn nhiều token hơn.</small></div></label>
+    </fieldset>
+    <div class="dialog-actions">
+      <button value="cancel" class="btn ghost" formnovalidate>Huỷ</button>
+      <button id="newSubmit" value="ok" class="btn primary">Bắt đầu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Cài đặt model & nhà cung cấp -->
+<dialog id="settingsDialog" class="dialog wide">
+  <div class="settings">
+    <div class="settings-head">
+      <h2>Cài đặt</h2>
+      <button class="btn ghost icon" id="btnSettingsClose" title="Đóng">✕</button>
+    </div>
+
+    <section class="set-section" id="creditBox">
+      <h3>Tài khoản OpenRouter</h3>
+      <div class="set-row">
+        <div id="creditInfo" class="muted">Bấm để kiểm tra số dư và hạn mức của key.</div>
+        <button id="btnCredit" class="btn">Kiểm tra số dư</button>
+      </div>
+    </section>
+
+    <section class="set-section">
+      <h3>Model đang dùng</h3>
+      <p class="hint">Áp dụng cho mọi truyện. Truyện đang chạy sẽ dùng model mới sau khi dừng.</p>
+      <div class="role-grid" id="roleGrid"></div>
+      <label class="field inline">
+        <span>Giới hạn chi phí mỗi truyện (USD, 0 = không giới hạn)</span>
+        <input type="number" id="budgetUsd" min="0" step="0.5">
+      </label>
+      <div class="dialog-actions"><button id="btnSaveModels" class="btn primary">Lưu lựa chọn</button></div>
+    </section>
+
+    <section class="set-section">
+      <h3>Nhà cung cấp & API key</h3>
+      <div id="providerList" class="provider-list"></div>
+      <div class="dialog-actions"><button id="btnAddProvider" class="btn">＋ Thêm nhà cung cấp</button></div>
+
+      <form id="providerForm" class="provider-form hidden" autocomplete="off">
+        <h4 id="pfTitle">Sửa nhà cung cấp</h4>
+        <label class="field" id="pfPresetField">
+          <span>Nhà cung cấp</span>
+          <select id="pfPreset"></select>
+        </label>
+        <label class="field" id="pfNameField">
+          <span>Tên (key trong config)</span>
+          <input type="text" id="pfName" placeholder="vd: my-proxy">
+        </label>
+        <label class="field" id="pfTypeField">
+          <span>Giao thức</span>
+          <select id="pfType">
+            <option value="">(mặc định theo nhà cung cấp)</option>
+            <option value="openai">openai (tương thích OpenAI)</option>
+            <option value="anthropic">anthropic</option>
+            <option value="gemini">gemini</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Base URL</span>
+          <input type="text" id="pfBaseURL" placeholder="để trống = mặc định">
+        </label>
+        <label class="field">
+          <span>API key</span>
+          <input type="password" id="pfKey" placeholder="">
+          <label class="check"><input type="checkbox" id="pfKeyClear"> Xoá key đang lưu</label>
+        </label>
+        <div class="field">
+          <span>Model (mỗi dòng một model)</span>
+          <textarea id="pfModels" rows="4" class="mono"></textarea>
+          <div class="catalog-add">
+            <input type="text" id="pfCatalog" list="pfCatalogList" placeholder="Tìm model trong danh mục để thêm…">
+            <datalist id="pfCatalogList"></datalist>
+            <button type="button" id="pfCatalogAdd" class="btn">Thêm</button>
+          </div>
+          <div id="pfCatalogHint" class="hint"></div>
+        </div>
+        <div id="pfTestResult" class="hint"></div>
+        <div class="dialog-actions">
+          <button type="button" id="pfCancel" class="btn ghost">Huỷ</button>
+          <button type="button" id="pfTest" class="btn">Kiểm tra kết nối</button>
+          <button type="submit" id="pfSave" class="btn primary">Lưu nhà cung cấp</button>
+        </div>
+      </form>
+    </section>
+    <p class="hint" id="configPath"></p>
+  </div>
+</dialog>
+
+<div id="toasts" class="toasts"></div>
+<script src="app.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

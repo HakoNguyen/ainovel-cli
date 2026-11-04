@@ -12,6 +12,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/entry/headless"
 	"github.com/voocel/ainovel-cli/internal/entry/startup"
 	"github.com/voocel/ainovel-cli/internal/entry/tui"
+	"github.com/voocel/ainovel-cli/internal/entry/web"
 	"github.com/voocel/ainovel-cli/internal/eval"
 	"github.com/voocel/ainovel-cli/internal/rules"
 	buildversion "github.com/voocel/ainovel-cli/internal/version"
@@ -51,7 +52,7 @@ func main() {
 
 	// Khởi tạo lần đầu nếu chưa có cấu hình
 	if bootstrap.NeedsSetup() {
-		if opts.Headless {
+		if opts.Headless || opts.Web {
 			die("Lỗi: Chế độ headless không hỗ trợ thiết lập lần đầu, vui lòng chạy chế độ TUI trước để hoàn tất cấu hình.")
 		}
 		setupCfg, err := bootstrap.RunSetup()
@@ -115,6 +116,12 @@ func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 	if opts.Prompt != "" || opts.PromptFile != "" {
 		die("Lỗi: Tham số --prompt / --prompt-file chỉ có thể sử dụng trong chế độ --headless.")
 	}
+	if opts.Web {
+		if err := web.Run(cfg, web.Options{Addr: opts.Addr}); err != nil {
+			die("Lỗi: %v", err)
+		}
+		return
+	}
 	if err := tui.Run(cfg, bundle, versionInfo()); err != nil {
 		die("Lỗi: %v", err)
 	}
@@ -122,6 +129,8 @@ func runWithConfig(cfg bootstrap.Config, opts cliOptions, args []string) {
 
 type cliOptions struct {
 	Headless      bool
+	Web           bool
+	Addr          string
 	Prompt        string
 	PromptFile    string
 	Version       bool
@@ -158,6 +167,14 @@ func parseCLIOptions(argv []string) (cliOptions, []string, error) {
 			}
 		case "--headless":
 			opts.Headless = true
+		case "--web":
+			opts.Web = true
+		case "--addr":
+			if i+1 >= len(argv) {
+				return opts, nil, fmt.Errorf("--addr thiếu giá trị")
+			}
+			opts.Addr = argv[i+1]
+			i++
 		case "--prompt":
 			if i+1 >= len(argv) {
 				return opts, nil, fmt.Errorf("--prompt thiếu giá trị")
@@ -176,6 +193,15 @@ func parseCLIOptions(argv []string) (cliOptions, []string, error) {
 	}
 	if opts.Prompt != "" && opts.PromptFile != "" {
 		return opts, nil, fmt.Errorf("--prompt và --prompt-file không thể dùng đồng thời")
+	}
+	if opts.Web && opts.Headless {
+		return opts, nil, fmt.Errorf("--web và --headless không thể dùng đồng thời")
+	}
+	if opts.Addr != "" && !opts.Web {
+		return opts, nil, fmt.Errorf("--addr chỉ dùng cùng --web")
+	}
+	if opts.Web && opts.Addr == "" {
+		opts.Addr = ":8080"
 	}
 	if opts.Version && (opts.Update || opts.Headless || opts.Prompt != "" || opts.PromptFile != "" || len(args) > 0) {
 		return opts, nil, fmt.Errorf("version không thể dùng chung với các tham số khởi động khác")
