@@ -223,7 +223,7 @@ async function openBook(id) {
   $("#aiText").replaceChildren();
   $("#aiChapterLabel").textContent = "—";
   $("#meChapterLabel").textContent = "Chọn một chương bên trái";
-  const ed = $("#editor"); ed.value = ""; ed.disabled = true;
+  loadEditor("", ""); quill.enable(false);
   updateWordCount(); setSaveState("—"); setSelection("");
   resetLive("");
   switchTab("ai", "outline");
@@ -402,10 +402,8 @@ async function selectChapter(n) {
   renderOutline(d);
   renderAIText(d);
 
-  const ed = $("#editor");
-  ed.disabled = false;
-  ed.value = d.mine || "";
-  ed.scrollTop = 0;
+  loadEditor(d.mine_html, d.mine);
+  quill.enable(true);
   S.dirty = false;
   updateWordCount();
   setSaveState(d.mine ? "Đã lưu" : "Chưa viết");
@@ -473,33 +471,97 @@ async function copyText(t) {
   try { await navigator.clipboard.writeText(t); toast("Đã sao chép"); } catch { toast("Không sao chép được", "error"); }
 }
 
-// ================= Bản thảo của tác giả =================
-const editor = $("#editor");
-editor.addEventListener("input", () => {
+// ================= Bản thảo của tác giả (Quill) =================
+const ICONS = Quill.import("ui/icons");
+ICONS.undo = '<svg viewBox="0 0 18 18"><path class="ql-stroke" d="M6 4 2.5 7.5 6 11"/><path class="ql-stroke" d="M3 7.5h7.5a4.5 4.5 0 0 1 0 9H8"/></svg>';
+ICONS.redo = '<svg viewBox="0 0 18 18"><path class="ql-stroke" d="M12 4l3.5 3.5L12 11"/><path class="ql-stroke" d="M15 7.5H7.5a4.5 4.5 0 0 0 0 9H10"/></svg>';
+
+async function uploadImage(file) {
+  if (!S.bookId) throw new Error("Chưa mở truyện");
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`api/books/${S.bookId}/images`, { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+  return data.url;
+}
+
+async function insertImages(range, files) {
+  let index = range ? range.index : quill.getLength();
+  for (const f of files) {
+    if (!f.type.startsWith("image/")) continue;
+    try {
+      const url = await uploadImage(f);
+      quill.insertEmbed(index, "image", url, "user");
+      index += 1;
+    } catch (e) { toast("Tải ảnh thất bại: " + e.message, "error"); }
+  }
+  quill.setSelection(index, 0, "silent");
+}
+
+const quill = new Quill("#editor", {
+  theme: "snow",
+  placeholder: "Chọn một chương rồi bắt đầu viết ở đây. Nhìn dàn ý bên trái mà viết. Bôi đen một đoạn rồi hỏi trợ lý để được góp ý riêng đoạn đó.",
+  modules: {
+    toolbar: {
+      container: "#editorToolbar",
+      handlers: {
+        undo() { this.quill.history.undo(); },
+        redo() { this.quill.history.redo(); },
+        image() {
+          const input = el("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp", multiple: true });
+          input.onchange = () => insertImages(quill.getSelection(true), [...input.files]);
+          input.click();
+        },
+      },
+    },
+    history: { delay: 800, maxStack: 500, userOnly: true },
+    // Ảnh kéo-thả hoặc dán vào được tải lên máy chủ thay vì nhúng base64.
+    uploader: { handler: (range, files) => insertImages(range, files) },
+  },
+});
+quill.enable(false);
+let lastRange = null;
+
+const editorText = () => quill.getText().replace(/\n$/, "");
+const editorHTML = () => (quill.getLength() <= 1 && !quill.root.querySelector("img") ? "" : quill.root.innerHTML);
+
+function loadEditor(html, text) {
+  if (html) quill.setContents(quill.clipboard.convert({ html }), "silent");
+  else quill.setText(text || "", "silent");
+  quill.history.clear();
+  quill.root.scrollTop = 0;
+  lastRange = null;
+}
+
+quill.on("text-change", (_delta, _old, source) => {
+  if (source === "silent") return;
   S.dirty = true;
   setSaveState("Đang gõ…");
   updateWordCount();
   clearTimeout(S.saveTimer);
   S.saveTimer = setTimeout(saveMine, 1200);
 });
-["select", "keyup", "mouseup"].forEach((ev) => editor.addEventListener(ev, () => {
-  const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+quill.on("selection-change", (range) => {
+  if (!range) return; // mất focus (vd. bấm sang ô chat): giữ nguyên đoạn đã chọn
+  lastRange = range;
+  const sel = range.length ? quill.getText(range.index, range.length) : "";
   setSelection(sel.trim().length >= 4 ? sel : "");
-}));
+});
 
-function updateWordCount() { $("#wordCount").textContent = `${fmtNum(countWords(editor.value))} chữ`; }
+function updateWordCount() { $("#wordCount").textContent = `${fmtNum(countWords(editorText()))} chữ`; }
 function setSaveState(t) { $("#saveState").textContent = t; }
 
 async function saveMine(opts = {}) {
   clearTimeout(S.saveTimer);
   if (!S.bookId || !S.chapter || !S.dirty) return;
-  const id = S.bookId, n = S.chapter, text = editor.value;
+  const id = S.bookId, n = S.chapter, text = editorText(), html = editorHTML();
   S.dirty = false;
   setSaveState("Đang lưu…");
   try {
-    const r = await api(`api/books/${id}/chapter/${n}/mine`, { method: "PUT", body: { text }, keepalive: opts.keepalive });
+    const r = await api(`api/books/${id}/chapter/${n}/mine`, { method: "PUT", body: { text, html }, keepalive: opts.keepalive });
     if (S.bookId !== id) return;
-    if (S.chapterData && S.chapter === n) S.chapterData.mine = text;
+    if (S.chapterData && S.chapter === n) { S.chapterData.mine = text; S.chapterData.mine_html = html; }
     if (S.chapter === n) setSaveState("Đã lưu lúc " + new Date().toLocaleTimeString("vi-VN"));
     const mark = document.querySelector(`.ch[data-ch="${n}"] .marks`);
     if (mark) {
@@ -526,16 +588,16 @@ function stepChapter(delta) {
 $("#btnPrevCh").onclick = () => stepChapter(-1);
 $("#btnNextCh").onclick = () => stepChapter(1);
 
+// Chèn câu trả lời của trợ lý vào vị trí con trỏ cuối cùng (thay đoạn đang bôi đen nếu có).
 function insertIntoEditor(text) {
   if (!S.chapter) { toast("Hãy chọn một chương trước", "error"); return; }
-  const start = editor.selectionStart, end = editor.selectionEnd;
-  const before = editor.value.slice(0, start), after = editor.value.slice(end);
-  const pad = before && !before.endsWith("\n") ? "\n\n" : "";
-  editor.value = before + pad + text.trim() + after;
-  const pos = (before + pad + text.trim()).length;
-  editor.setSelectionRange(pos, pos);
-  editor.focus();
-  editor.dispatchEvent(new Event("input"));
+  const range = lastRange || { index: quill.getLength() - 1, length: 0 };
+  if (range.length) quill.deleteText(range.index, range.length, "user");
+  const before = quill.getText(0, range.index);
+  const pad = before && !before.endsWith("\n") ? "\n" : "";
+  const body = pad + text.trim() + "\n";
+  quill.insertText(range.index, body, "user");
+  quill.setSelection(range.index + body.length, 0, "user");
 }
 
 // ================= Luồng sự kiện =================
@@ -813,7 +875,7 @@ async function sendChat(text) {
     const res = await fetch(`api/books/${id}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: S.sessionId, text, chapter: S.chapter, mine: editor.value, selection: S.selection }),
+      body: JSON.stringify({ session_id: S.sessionId, text, chapter: S.chapter, mine: editorText(), selection: S.selection }),
     });
     if (!res.ok) {
       let msg = `Lỗi ${res.status}`;

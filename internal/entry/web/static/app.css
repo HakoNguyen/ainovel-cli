@@ -186,12 +186,52 @@ button, select, textarea, input { font: inherit; color: inherit; }
 .mono-ish { white-space: pre-wrap; font-size: 14.5px; }
 .ai-meta { font-family: var(--sans); font-size: 12px; color: var(--muted); margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
 
-.editor {
-  flex: 1; min-height: 0; resize: none; border: 0; outline: none;
-  padding: 22px 28px; background: transparent;
-  font-family: var(--serif); font-size: 16.5px; line-height: 1.85;
+/* ---------- Trình soạn thảo (Quill) ---------- */
+.editor-toolbar.ql-toolbar.ql-snow {
+  border: 0; border-bottom: 1px solid var(--line); padding: 6px 10px;
+  font-family: var(--sans); display: flex; flex-wrap: wrap; gap: 2px 0;
 }
-.editor:disabled { cursor: not-allowed; }
+.ql-toolbar.ql-snow .ql-formats { margin-right: 6px; padding-right: 6px; border-right: 1px solid var(--line); display: inline-flex; align-items: center; }
+.ql-toolbar.ql-snow .ql-formats:last-child { border-right: 0; }
+.ql-snow.ql-toolbar button { width: 30px; height: 28px; padding: 4px 6px; border-radius: 6px; }
+.ql-snow.ql-toolbar button:hover { background: var(--surface-2); }
+.ql-snow .ql-stroke { stroke: var(--text); }
+.ql-snow .ql-fill, .ql-snow .ql-stroke.ql-fill { fill: var(--text); }
+.ql-snow .ql-picker { color: var(--text); font-size: 13px; }
+.ql-snow.ql-toolbar button:hover .ql-stroke, .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.ql-snow.ql-toolbar .ql-picker-label:hover .ql-stroke, .ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-stroke { stroke: var(--accent); }
+.ql-snow.ql-toolbar button:hover .ql-fill, .ql-snow.ql-toolbar button.ql-active .ql-fill,
+.ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-fill { fill: var(--accent); }
+.ql-snow.ql-toolbar button.ql-active, .ql-snow.ql-toolbar .ql-picker-label.ql-active,
+.ql-snow.ql-toolbar .ql-picker-label:hover, .ql-snow.ql-toolbar .ql-picker-item:hover,
+.ql-snow.ql-toolbar .ql-picker-item.ql-selected { color: var(--accent); }
+.ql-snow.ql-toolbar button.ql-active { background: var(--accent-soft); }
+.ql-snow .ql-picker.ql-header { width: 124px; }
+.ql-snow .ql-picker-label { border: 1px solid var(--line) !important; border-radius: 6px; padding-left: 8px; }
+.ql-snow .ql-picker.ql-expanded .ql-picker-label { border-color: var(--accent) !important; }
+.ql-snow .ql-picker-options { background: var(--surface); border: 1px solid var(--line) !important; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 4px 8px; }
+/* Nhãn tiếng Việt cho ô Kiểu đoạn (Quill vẽ nhãn bằng CSS content) */
+.ql-snow .ql-picker.ql-header .ql-picker-label::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item::before { content: "Đoạn văn"; }
+.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="1"]::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before { content: "Tiêu đề 1"; }
+.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { content: "Tiêu đề 2"; }
+.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { content: "Tiêu đề 3"; }
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before { font-size: 1.5em; }
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { font-size: 1.25em; }
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { font-size: 1.1em; }
+
+.editor.ql-container.ql-snow { flex: 1; min-height: 0; height: auto; border: 0; font-family: var(--serif); font-size: 16.5px; }
+.editor .ql-editor { padding: 22px 28px; line-height: 1.85; overflow-y: auto; }
+.editor .ql-editor p { margin: 0 0 .7em; }
+.editor .ql-editor h1, .editor .ql-editor h2, .editor .ql-editor h3 { font-family: var(--serif); margin: .6em 0 .4em; line-height: 1.35; }
+.editor .ql-editor blockquote { border-left: 3px solid var(--accent); padding-left: 14px; color: var(--muted); margin: .4em 0 .8em; }
+.editor .ql-editor img { max-width: 100%; border-radius: 6px; display: block; margin: .6em auto; }
+.editor .ql-editor.ql-blank::before { color: var(--muted); font-style: normal; left: 28px; right: 28px; }
+.editor.ql-disabled .ql-editor { cursor: not-allowed; }
+.editor.ql-disabled + .pane-foot, .me-pane:has(.ql-disabled) .editor-toolbar { opacity: .55; }
 
 /* ---------- Chat ---------- */
 .chat-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }

@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap&subset=vietnamese">
+<link rel="stylesheet" href="vendor/quill/quill.snow.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -95,7 +96,37 @@
           <button id="btnNextCh" class="btn tiny ghost" title="Chương sau">›</button>
         </div>
       </div>
-      <textarea id="editor" class="editor" spellcheck="false" placeholder="Chọn một chương rồi bắt đầu viết ở đây. Nhìn dàn ý bên trái mà viết. Bôi đen một đoạn rồi hỏi trợ lý để được góp ý riêng đoạn đó." disabled></textarea>
+      <div id="editorToolbar" class="editor-toolbar">
+        <span class="ql-formats">
+          <button type="button" class="ql-undo" title="Hoàn tác (Ctrl+Z)"></button>
+          <button type="button" class="ql-redo" title="Làm lại (Ctrl+Shift+Z)"></button>
+        </span>
+        <span class="ql-formats">
+          <select class="ql-header" title="Kiểu đoạn">
+            <option selected></option>
+            <option value="1"></option>
+            <option value="2"></option>
+            <option value="3"></option>
+          </select>
+        </span>
+        <span class="ql-formats">
+          <button type="button" class="ql-bold" title="Đậm (Ctrl+B)"></button>
+          <button type="button" class="ql-italic" title="Nghiêng (Ctrl+I)"></button>
+          <button type="button" class="ql-underline" title="Gạch chân (Ctrl+U)"></button>
+          <button type="button" class="ql-strike" title="Gạch ngang"></button>
+        </span>
+        <span class="ql-formats">
+          <button type="button" class="ql-blockquote" title="Trích dẫn"></button>
+          <select class="ql-align" title="Căn lề"></select>
+          <button type="button" class="ql-clean" title="Xoá định dạng"></button>
+        </span>
+        <span class="ql-formats">
+          <button type="button" class="ql-image" title="Chèn ảnh (hoặc kéo thả / dán ảnh)"></button>
+          <button type="button" class="ql-list" value="bullet" title="Danh sách chấm"></button>
+          <button type="button" class="ql-list" value="ordered" title="Danh sách số"></button>
+        </span>
+      </div>
+      <div id="editor" class="editor"></div>
       <div class="pane-foot">
         <span id="wordCount">0 chữ</span>
         <span id="saveState" class="muted">—</span>
@@ -244,6 +275,7 @@
 </dialog>
 
 <div id="toasts" class="toasts"></div>
+<script src="vendor/quill/quill.js"></script>
 <script src="app.js"></script>
 <script src="settings.js"></script>
 </body>

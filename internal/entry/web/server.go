@@ -97,6 +97,8 @@ func Run(cfg bootstrap.Config, opts Options) error {
 	mux.HandleFunc("GET /api/books/{id}/chapter/{n}", s.withBook(s.handleChapter))
 	mux.HandleFunc("PUT /api/books/{id}/chapter/{n}/mine", s.withBook(s.handleSaveMine))
 	mux.HandleFunc("GET /api/books/{id}/export", s.withBook(s.handleExportMine))
+	mux.HandleFunc("POST /api/books/{id}/images", s.handleUploadImage)
+	mux.HandleFunc("GET /api/books/{id}/images/{name}", s.handleGetImage)
 	mux.HandleFunc("POST /api/books/{id}/start", s.withBook(s.handleStart))
 	mux.HandleFunc("POST /api/books/{id}/resume", s.withBook(s.handleResume))
 	mux.HandleFunc("POST /api/books/{id}/pause", s.withBook(s.handlePause))
@@ -386,12 +388,13 @@ func (s *server) handleChapter(w http.ResponseWriter, r *http.Request, rt *bookR
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"chapter":  n,
-		"outline":  outlineEntry(rt.store, n),
-		"plan":     plan,
-		"ai_text":  aiText,
-		"ai_state": aiState,
-		"mine":     loadMine(rt.store.Dir(), n),
+		"chapter":   n,
+		"outline":   outlineEntry(rt.store, n),
+		"plan":      plan,
+		"ai_text":   aiText,
+		"ai_state":  aiState,
+		"mine":      loadMine(rt.store.Dir(), n),
+		"mine_html": loadMineHTML(rt.store.Dir(), n),
 	})
 }
 
@@ -407,8 +410,33 @@ func outlineEntry(st *store.Store, n int) *domain.OutlineEntry {
 
 // ---- 作者稿 ----
 
+// 每章两份：NN.html 是编辑器里带格式的原稿，NN.md 是同步写出的纯文本，
+// 供字数统计、助手上下文和导出使用（服务端无需解析 HTML）。
 func minePath(dir string, n int) string {
 	return filepath.Join(dir, userDraftDir, fmt.Sprintf("%02d.md", n))
+}
+
+func mineHTMLPath(dir string, n int) string {
+	return filepath.Join(dir, userDraftDir, fmt.Sprintf("%02d.html", n))
+}
+
+func loadMineHTML(dir string, n int) string {
+	data, err := os.ReadFile(mineHTMLPath(dir, n))
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func writeAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func loadMine(dir string, n int) string {
@@ -453,21 +481,17 @@ func (s *server) handleSaveMine(w http.ResponseWriter, r *http.Request, rt *book
 	}
 	var body struct {
 		Text string `json:"text"`
+		HTML string `json:"html"`
 	}
 	if !readJSON(w, r, &body) {
 		return
 	}
-	path := minePath(rt.store.Dir(), n)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := rt.store.Dir()
+	if err := writeAtomic(minePath(dir, n), []byte(body.Text)); err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(body.Text), 0o644); err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := writeAtomic(mineHTMLPath(dir, n), []byte(body.HTML)); err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
