@@ -101,6 +101,7 @@ func Run(cfg bootstrap.Config, opts Options) error {
 	mux.HandleFunc("GET /api/books/{id}/outline", s.withBook(s.handleOutline))
 	mux.HandleFunc("GET /api/books/{id}/chapter/{n}", s.withBook(s.handleChapter))
 	mux.HandleFunc("PUT /api/books/{id}/chapter/{n}/mine", s.withBook(s.handleSaveMine))
+	mux.HandleFunc("POST /api/books/{id}/chapter/{n}/adopt", s.withBook(s.handleAdoptMine))
 	mux.HandleFunc("GET /api/books/{id}/export", s.withBook(s.handleExportMine))
 	mux.HandleFunc("POST /api/books/{id}/images", s.handleUploadImage)
 	mux.HandleFunc("GET /api/books/{id}/images/{name}", s.handleGetImage)
@@ -415,6 +416,10 @@ func (s *server) handleChapter(w http.ResponseWriter, r *http.Request, rt *bookR
 	plan, _ := rt.store.Drafts.LoadChapterPlan(n)
 	aiText, _ := rt.store.Drafts.LoadChapterText(n)
 	aiState := "final"
+	// Đã dùng bản tác giả làm chương chính thức: tab "Bản AI viết" vẫn hiện bản AI gốc đã sao lưu.
+	if backup, err := os.ReadFile(aiOriginalPath(rt.store.Dir(), n)); err == nil && len(backup) > 0 {
+		aiText = string(backup)
+	}
 	if aiText == "" {
 		aiText, _ = rt.store.Drafts.LoadDraft(n)
 		aiState = "draft"
@@ -430,6 +435,9 @@ func (s *server) handleChapter(w http.ResponseWriter, r *http.Request, rt *bookR
 		"ai_state":  aiState,
 		"mine":      loadMine(rt.store.Dir(), n),
 		"mine_html": loadMineHTML(rt.store.Dir(), n),
+		// ai_done: AI đã chốt chương (mới thay được bằng bản tác giả); mine_official: chương chính thức đang là bản tác giả hiện tại
+		"ai_done":       chapterCompleted(rt, n),
+		"mine_official": adoptState(rt, n),
 	})
 }
 

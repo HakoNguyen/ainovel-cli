@@ -387,6 +387,7 @@ async function loadState() {
   $("#btnPause").disabled = !running || S.starting; // đang khởi động thì engine chưa chạy, Dừng không có tác dụng
   $("#btnNext").classList.toggle("hidden", s.AdvanceMode !== "review");
   $("#btnNext").disabled = running || s.Phase !== "writing";
+  updateAdoptBtn();
   $("#liveDot").classList.toggle("hidden", !running);
 
   $("#btnStage").classList.toggle("hidden", !S.hasBook || s.Phase === "complete");
@@ -515,8 +516,10 @@ async function refreshChapterAI() {
     const d = await bookApi(`chapter/${n}`);
     if (S.chapter !== n || S.bookId !== id) return;
     S.chapterData = { ...d, mine: S.chapterData ? S.chapterData.mine : d.mine };
+    if (S.dirty) S.chapterData.mine_official = false; // đang có chữ chưa lưu thì chưa thể là bản chính thức
     renderOutline(d);
     renderAIText(d);
+    updateAdoptBtn();
   } catch { /* bỏ qua */ }
 }
 
@@ -560,7 +563,7 @@ function renderAIText(d) {
     return;
   }
   box.append(el("div", { class: "ai-meta" },
-    el("span", {}, d.ai_state === "final" ? "Bản đã duyệt" : "Bản nháp đang viết"),
+    el("span", {}, d.mine_official ? "Bản AI gốc (chương chính thức đang là bản của bạn)" : d.ai_state === "final" ? "Bản đã duyệt" : "Bản nháp đang viết"),
     el("span", {}, "·"), el("span", {}, fmtNum(countWords(d.ai_text)) + " chữ"),
     el("button", { class: "btn tiny ghost", onclick: () => copyText(d.ai_text) }, "Sao chép")));
   box.append(proseNodes(d.ai_text));
@@ -636,6 +639,8 @@ function loadEditor(html, text) {
 quill.on("text-change", (_delta, _old, source) => {
   if (source === "silent") return;
   S.dirty = true;
+  // Sửa tiếp sau khi đã dùng làm bản chính thức: bản chính thức cũ không còn khớp, cho phép cập nhật lại.
+  if (S.chapterData) S.chapterData.mine_official = false;
   setSaveState("Đang gõ…");
   updateWordCount();
   clearTimeout(S.saveTimer);
@@ -648,7 +653,55 @@ quill.on("selection-change", (range) => {
   setSelection(sel.trim().length >= 4 ? sel : "");
 });
 
-function updateWordCount() { $("#wordCount").textContent = `${fmtNum(countWords(editorText()))} chữ`; }
+function updateWordCount() {
+  $("#wordCount").textContent = `${fmtNum(countWords(editorText()))} chữ`;
+  updateAdoptBtn();
+}
+
+// ---- Dùng bản của tôi làm chương chính thức ----
+// Chỉ áp dụng cho chương AI đã chốt: engine thay chương đó bằng bản của bạn, đọc lại để cập nhật
+// tóm tắt/nhân vật/mốc thời gian và học giọng văn; các chương AI viết sau nối tiếp bản này.
+const ADOPT_MIN_WORDS = 50;
+function updateAdoptBtn() {
+  const b = $("#btnAdopt");
+  const d = S.chapterData;
+  if (!d || !S.chapter || !S.state || S.state.Phase !== "writing" && !d.ai_done) { b.classList.add("hidden"); return; }
+  b.classList.remove("hidden");
+  const words = countWords(editorText());
+  const busy = S.adopting || S.starting || (S.state && S.state.IsRunning);
+  if (S.adopting) {
+    b.textContent = "Đang đồng bộ…"; b.disabled = true;
+  } else if (!d.ai_done) {
+    b.textContent = "Dùng làm bản chính thức"; b.disabled = true;
+    b.title = `AI chưa chốt chương ${S.chapter}. Bấm “AI viết chương kế” để AI viết chương này trước, rồi mới thay bằng bản của bạn.`;
+  } else if (d.mine_official) {
+    b.textContent = "✓ Đang là bản chính thức"; b.disabled = true;
+    b.title = "Chương chính thức đang là bản của bạn; các chương AI viết sau sẽ nối tiếp bản này.";
+  } else {
+    b.textContent = "Dùng làm bản chính thức";
+    b.disabled = busy || words < ADOPT_MIN_WORDS;
+    b.title = words < ADOPT_MIN_WORDS ? `Viết ít nhất ${ADOPT_MIN_WORDS} chữ` :
+      busy ? "Đợi AI dừng rồi mới thay được" : "Thay chương AI đã viết bằng bản của bạn; AI viết các chương sau sẽ nối tiếp bản này";
+  }
+}
+
+$("#btnAdopt").onclick = async () => {
+  const id = S.bookId, n = S.chapter;
+  if (!confirm(`Dùng bản của bạn làm chương ${n} chính thức?\n\n` +
+    "• AI đọc lại chương này (1 lượt gọi AI nhỏ) để cập nhật tóm tắt, nhân vật, mốc thời gian và học giọng văn của bạn.\n" +
+    "• Các chương AI viết sau sẽ nối tiếp bản của bạn.\n" +
+    "• Bản AI cũ vẫn xem được ở tab “Bản AI viết”.")) return;
+  if (S.dirty) await saveMine();
+  S.adopting = true; updateAdoptBtn();
+  try {
+    const r = await bookApi(`chapter/${n}/adopt`, { method: "POST" });
+    if (S.chapterData && S.chapter === n && S.bookId === id) S.chapterData.mine_official = true;
+    toast(`Đã dùng bản của bạn làm chương ${n} chính thức` + (r.change_summary ? `: ${r.change_summary.slice(0, 140)}` : ""));
+    if ((r.downstream_issues || []).length) toast("Lưu ý cho các chương sau: " + r.downstream_issues.join("; ").slice(0, 200));
+    loadState();
+  } catch (e) { toast(e.message, "error"); }
+  finally { S.adopting = false; if (S.bookId === id) updateAdoptBtn(); }
+};
 function setSaveState(t) { $("#saveState").textContent = t; }
 
 async function saveMine(opts = {}) {
