@@ -362,6 +362,8 @@ async function loadState() {
   if (S.bookId !== id) return;
   S.state = data.snapshot;
   S.hasBook = data.has_book;
+  // Đã gửi ý tưởng cho engine (kể cả khi AI chưa kịp lưu tiền đề) thì chỉ cần chạy tiếp, không nhập lại.
+  S.canResume = S.hasBook || !!data.start_prompt;
   const s = S.state;
   const running = s.IsRunning || s.RuntimeState === "running";
   const title = data.name || s.BookTitle || "Truyện chưa đặt tên";
@@ -377,7 +379,8 @@ async function loadState() {
 
   document.querySelectorAll(".seg").forEach((b) => b.classList.toggle("active", b.dataset.mode === (s.AdvanceMode || "auto")));
   $("#btnRun").disabled = running;
-  $("#btnRun").textContent = S.hasBook ? "▶ Chạy AI" : "▶ Bắt đầu";
+  $("#btnRun").textContent = S.canResume ? "▶ Tiếp tục" : "▶ Bắt đầu";
+  $("#btnRun").title = S.canResume ? "Cho AI chạy tiếp từ chỗ đã dừng" : "Nhập ý tưởng để AI bắt đầu dựng truyện";
   $("#btnPause").disabled = !running;
   $("#btnNext").classList.toggle("hidden", s.AdvanceMode !== "review");
   $("#btnNext").disabled = running || s.Phase !== "writing";
@@ -430,8 +433,8 @@ function renderChapterList() {
   box.replaceChildren();
   if (!groups.length) {
     box.append(el("div", { class: "empty" },
-      S.hasBook || (S.state && S.state.Phase)
-        ? "AI đang dựng dàn ý… Bấm ▶ Chạy AI nếu nó đang dừng."
+      S.canResume
+        ? (S.state && S.state.IsRunning ? "AI đang dựng dàn ý…" : "AI chưa dựng xong dàn ý. Bấm ▶ Tiếp tục để AI làm tiếp.")
         : "Truyện này chưa có dàn ý. Bấm ▶ Bắt đầu để cùng AI xây dựng ý tưởng."));
     return;
   }
@@ -787,11 +790,11 @@ function currentMode() {
 }
 
 $("#btnRun").onclick = async () => {
-  if (!S.hasBook) { openNewDialog(S.bookId); return; }
+  if (!S.canResume) { openNewDialog(S.bookId); return; }
   if (currentMode() === "auto" && !confirm("Chế độ “AI viết hết”: AI sẽ tự viết liên tục nhiều chương và tốn token cho tới khi bạn bấm Dừng. Chạy tiếp?")) return;
   try {
     await bookApi("resume", { method: "POST", body: { mode: currentMode() } });
-    toast("Đang khởi động AI…");
+    toast("AI đang chạy tiếp từ chỗ đã dừng…");
     switchTab("ai", "live");
     setTimeout(loadState, 800);
   } catch (e) { toast(e.message, "error"); }
