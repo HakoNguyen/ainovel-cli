@@ -93,8 +93,14 @@ func (s *server) scanDisk() ([]diskBook, error) {
 	return out, err
 }
 
+// isBookDir 判断目录是不是作品目录。meta/run.json、meta/format.json 是 Host 打开目录时就写下的，
+// 因此启动失败、还没有书名和设定的书也能认出来。
 func isBookDir(dir string) bool {
-	for _, marker := range []string{filepath.Join("meta", "book.json"), "premise.md"} {
+	markers := []string{
+		filepath.Join("meta", "book.json"), "premise.md",
+		filepath.Join("meta", "run.json"), filepath.Join("meta", "format.json"),
+	}
+	for _, marker := range markers {
 		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
 			return true
 		}
