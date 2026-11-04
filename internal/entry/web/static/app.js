@@ -664,16 +664,26 @@ function updateWordCount() {
 const ADOPT_MIN_WORDS = 50;
 function updateAdoptBtn() {
   const b = $("#btnAdopt");
+  const hint = $("#adoptHint");
   const d = S.chapterData;
+  hint.classList.add("hidden");
   if (!d || !S.chapter || !S.state || S.state.Phase !== "writing" && !d.ai_done) { b.classList.add("hidden"); return; }
   b.classList.remove("hidden");
   const words = countWords(editorText());
   const busy = S.adopting || S.starting || (S.state && S.state.IsRunning);
+  // Lý do khoá nút hiện thẳng dưới khung viết (tooltip khó thấy).
+  const showHint = (text) => { hint.textContent = text; hint.classList.remove("hidden"); };
   if (S.adopting) {
     b.textContent = "Đang đồng bộ…"; b.disabled = true;
   } else if (!d.ai_done) {
     b.textContent = "Dùng làm bản chính thức"; b.disabled = true;
-    b.title = `AI chưa chốt chương ${S.chapter}. Bấm “AI viết chương kế” để AI viết chương này trước, rồi mới thay bằng bản của bạn.`;
+    const next = (S.state.CompletedCount || 0) + 1;
+    b.title = `AI chưa chốt chương ${S.chapter}. Engine chỉ thay được chương AI đã viết và chốt.`;
+    if (words >= ADOPT_MIN_WORDS) {
+      showHint(S.chapter === next
+        ? `Để AI nối tiếp bản này: bấm “AI viết chương kế” (AI viết chương ${S.chapter} trước), rồi quay lại bấm “Dùng làm bản chính thức”.`
+        : `AI mới tới chương ${next - 1}; cần AI viết lần lượt tới chương ${S.chapter} trước khi thay bằng bản của bạn.`);
+    }
   } else if (d.mine_official) {
     b.textContent = "✓ Đang là bản chính thức"; b.disabled = true;
     b.title = "Chương chính thức đang là bản của bạn; các chương AI viết sau sẽ nối tiếp bản này.";
