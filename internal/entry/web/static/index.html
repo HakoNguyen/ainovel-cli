@@ -24,11 +24,16 @@
     </div>
     <div class="actions">
       <button class="btn ghost btn-settings" title="Cài đặt model & API key">⚙ Cài đặt</button>
+      <button id="btnScan" class="btn ghost" title="Tìm thư mục truyện có sẵn trong workspace để thêm vào thư viện">🔍 Tìm truyện trên đĩa</button>
       <button id="btnLibNew" class="btn primary">＋ Truyện mới</button>
     </div>
   </header>
   <main class="library scroll">
     <div id="bookGrid" class="book-grid"></div>
+    <details id="hiddenBooks" class="hidden-books hidden">
+      <summary>Truyện đã ẩn (<span id="hiddenCount">0</span>)</summary>
+      <div id="hiddenList" class="hidden-list"></div>
+    </details>
   </main>
 </div>
 
@@ -271,6 +276,17 @@
       </form>
     </section>
     <p class="hint" id="configPath"></p>
+  </div>
+</dialog>
+
+<dialog id="scanDialog" class="dialog">
+  <div class="settings">
+    <div class="settings-head">
+      <h2>Truyện có sẵn trên đĩa</h2>
+      <button class="btn ghost icon" id="btnScanClose" title="Đóng">✕</button>
+    </div>
+    <p class="hint">Quét thư mục workspace (gồm output/ của TUI và books/) để tìm truyện chưa có trong thư viện. Muốn đưa truyện từ chỗ khác vào, hãy chép thư mục truyện vào workspace trước.</p>
+    <div id="scanList" class="hidden-list"></div>
   </div>
 </dialog>
 

@@ -137,7 +137,10 @@ const PHASE_TEXT = { init: "khởi tạo", premise: "dựng tiền đề", outli
 
 // ================= Thư viện =================
 async function loadBooks() {
-  try { S.books = await api("api/books"); } catch (e) { toast(e.message, "error"); return; }
+  try {
+    const [books, hidden] = await Promise.all([api("api/books"), api("api/books?archived=1")]);
+    S.books = books; S.hiddenBooks = hidden;
+  } catch (e) { toast(e.message, "error"); return; }
   if (S.view === "library") renderLibrary();
   renderBookMenu();
 }
@@ -160,8 +163,9 @@ function renderLibrary() {
     const card = el("div", { class: "book-card" + (b.running ? " running" : ""), tabindex: "0",
       onclick: () => (location.hash = `#/b/${b.id}`),
       onkeydown: (e) => { if (e.key === "Enter") location.hash = `#/b/${b.id}`; } },
-      el("h3", {}, b.title || b.name),
-      el("div", { class: "syn" }, b.synopsis || (b.title !== b.name ? b.name : "Chưa có tóm tắt.")),
+      el("h3", {}, b.title),
+      b.renamed && b.ai_title && b.ai_title !== b.title ? el("div", { class: "ai-title" }, "AI đặt tên: " + b.ai_title) : null,
+      el("div", { class: "syn" }, b.synopsis || "Chưa có tóm tắt."),
       meta,
       el("div", { class: "foot" },
         el("span", {}, "Sửa lần cuối " + timeAgo(b.updated_at)),
@@ -173,16 +177,62 @@ function renderLibrary() {
   grid.append(el("div", { class: "book-card new-card", tabindex: "0", onclick: () => openNewDialog(null),
     onkeydown: (e) => { if (e.key === "Enter") openNewDialog(null); } },
     el("div", { class: "plus" }, "＋"), el("div", {}, "Truyện mới")));
+  renderHidden();
 }
 
+// ---- Truyện đã ẩn ----
+function renderHidden() {
+  const hidden = S.hiddenBooks || [];
+  $("#hiddenBooks").classList.toggle("hidden", !hidden.length);
+  $("#hiddenCount").textContent = hidden.length;
+  const list = $("#hiddenList");
+  list.replaceChildren();
+  for (const b of hidden) {
+    const name = b.renamed || !b.ai_title ? b.name : b.ai_title;
+    list.append(el("div", { class: "hidden-row" },
+      el("b", {}, name), el("span", { class: "muted" }, b.dir),
+      el("button", { class: "btn tiny", onclick: () => restoreBook(b) }, "Khôi phục")));
+  }
+}
+async function restoreBook(b) {
+  try { await api(`api/books/${b.id}/restore`, { method: "POST" }); toast("Đã đưa truyện trở lại thư viện"); loadBooks(); }
+  catch (e) { toast(e.message, "error"); }
+}
+
+// ---- Tìm truyện có sẵn trên đĩa ----
+$("#btnScan").onclick = async () => {
+  const list = $("#scanList");
+  list.replaceChildren(el("div", { class: "hint" }, "Đang quét thư mục workspace…"));
+  $("#scanDialog").showModal();
+  let found;
+  try { found = await api("api/library/scan"); } catch (e) { list.replaceChildren(el("div", { class: "hint err" }, e.message)); return; }
+  list.replaceChildren();
+  if (!found.length) {
+    list.append(el("div", { class: "hint" }, "Không thấy thư mục truyện nào chưa có trong thư viện. Truyện đã ẩn nằm ở mục “Truyện đã ẩn” cuối trang thư viện."));
+    return;
+  }
+  for (const f of found) {
+    const btn = el("button", { class: "btn tiny primary" }, "Thêm vào thư viện");
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try { await api("api/library/import", { method: "POST", body: { dir: f.dir } }); btn.textContent = "Đã thêm ✓"; loadBooks(); }
+      catch (e) { btn.disabled = false; toast(e.message, "error"); }
+    };
+    list.append(el("div", { class: "hidden-row" },
+      el("b", {}, f.title || "(chưa có tên)"),
+      el("span", { class: "muted" }, f.dir + (f.chapters ? ` · AI đã viết ${f.chapters} chương` : "")), btn));
+  }
+};
+$("#btnScanClose").onclick = () => $("#scanDialog").close();
+
 async function renameBook(b) {
-  const name = prompt("Tên truyện trong thư viện:", b.name);
+  const name = prompt("Tên truyện hiển thị trong thư viện:", b.title);
   if (!name || !name.trim()) return;
   try { await api(`api/books/${b.id}`, { method: "PATCH", body: { name } }); loadBooks(); }
   catch (e) { toast(e.message, "error"); }
 }
 async function archiveBook(b) {
-  if (!confirm(`Ẩn “${b.title || b.name}” khỏi thư viện?\n\nFile truyện và lịch sử trò chuyện vẫn được giữ nguyên trên đĩa.`)) return;
+  if (!confirm(`Ẩn “${b.title}” khỏi thư viện?\n\nFile truyện và lịch sử trò chuyện vẫn giữ nguyên trên đĩa. Có thể khôi phục ở mục “Truyện đã ẩn” cuối trang thư viện.`)) return;
   try { await api(`api/books/${b.id}`, { method: "DELETE" }); toast("Đã ẩn khỏi thư viện"); loadBooks(); }
   catch (e) { toast(e.message, "error"); }
 }
@@ -283,7 +333,7 @@ async function loadState() {
   S.hasBook = data.has_book;
   const s = S.state;
   const running = s.IsRunning || s.RuntimeState === "running";
-  const title = s.BookTitle || data.name || "Truyện chưa đặt tên";
+  const title = data.name || s.BookTitle || "Truyện chưa đặt tên";
 
   $("#bookTitle").textContent = title;
   document.title = title + " – ainovel";

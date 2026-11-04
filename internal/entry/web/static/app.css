@@ -374,3 +374,12 @@ button, select, textarea, input { font: inherit; color: inherit; }
 .credit-grid b { font-variant-numeric: tabular-nums; }
 .credit-grid .neg { color: var(--err); }
 @media (max-width: 600px) { .role-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Truyện đã ẩn / quét đĩa ---------- */
+.book-card .ai-title { font-size: 12px; color: var(--muted); margin-top: -6px; font-style: italic; }
+.hidden-books { max-width: 1400px; margin: 28px auto 0; color: var(--muted); }
+.hidden-books summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 6px 0; }
+.hidden-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.hidden-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; color: var(--text); }
+.hidden-row b { font-family: var(--serif); }
+.hidden-row .muted { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }

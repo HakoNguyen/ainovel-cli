@@ -125,7 +125,11 @@ func (s *server) assistContext(rt *bookRT, req chatRequest) string {
 	b.WriteString(fmt.Sprintf(assistSystemPrompt, lang))
 
 	if book, _ := rt.store.Book.Load(); book != nil {
-		section(&b, "Tên truyện", book.Title)
+		name := book.Title
+		if row, err := s.db.getBook(rt.id); err == nil {
+			name = displayName(row, book.Title)
+		}
+		section(&b, "Tên truyện", name)
 		section(&b, "Tóm tắt", clip(book.Synopsis, 1500))
 	}
 	if premise, _ := rt.store.Outline.LoadPremise(); premise != "" {

@@ -67,6 +67,7 @@ func Run(cfg bootstrap.Config, opts Options) error {
 		return err
 	}
 	defer d.Close()
+	backfillRenamed(d)
 	lib := newLibrary(cfg, d, opts.BooksRoot)
 	if err := lib.registerLegacy(); err != nil {
 		slog.Warn("web: đăng ký truyện cũ thất bại", "module", "web", "err", err)
@@ -90,6 +91,9 @@ func Run(cfg bootstrap.Config, opts Options) error {
 	mux.HandleFunc("POST /api/books", s.handleCreateBook)
 	mux.HandleFunc("PATCH /api/books/{id}", s.handleRenameBook)
 	mux.HandleFunc("DELETE /api/books/{id}", s.handleArchiveBook)
+	mux.HandleFunc("POST /api/books/{id}/restore", s.handleRestoreBook)
+	mux.HandleFunc("GET /api/library/scan", s.handleScanDisk)
+	mux.HandleFunc("POST /api/library/import", s.handleImportDir)
 
 	mux.HandleFunc("GET /api/books/{id}/events", s.withBook(s.handleEvents))
 	mux.HandleFunc("GET /api/books/{id}/state", s.withBook(s.handleState))
@@ -162,7 +166,8 @@ func (s *server) withBook(h bookHandler) http.HandlerFunc {
 
 type bookSummary struct {
 	bookRow
-	Title     string  `json:"title"`
+	Title     string  `json:"title"`    // 书库显示名（见 displayName）
+	AITitle   string  `json:"ai_title"` // 作品文件里 AI 定的书名
 	Open      bool    `json:"open"`
 	Running   bool    `json:"running"`
 	State     string  `json:"state"`
@@ -177,7 +182,7 @@ type bookSummary struct {
 }
 
 func (s *server) handleListBooks(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.listBooks()
+	rows, err := s.db.listBooks(r.URL.Query().Get("archived") == "1")
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -190,14 +195,13 @@ func (s *server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) summarize(row bookRow) bookSummary {
-	sum := bookSummary{bookRow: row, Title: row.Name}
+	sum := bookSummary{bookRow: row}
 	st := store.NewStore(row.Dir)
 	if book, _ := st.Book.Load(); book != nil {
-		if book.Title != "" {
-			sum.Title = book.Title
-		}
+		sum.AITitle = book.Title
 		sum.Synopsis = clip(book.Synopsis, 220)
 	}
+	sum.Title = displayName(row, sum.AITitle)
 	if rt := s.lib.peek(row.ID); rt != nil {
 		snap := rt.eng.Snapshot()
 		sum.Open = true
@@ -290,9 +294,14 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request, rt *bookRT)
 	snap := rt.eng.Snapshot()
 	book, _ := rt.store.Book.Load()
 	row, _ := s.db.getBook(rt.id)
+	aiTitle := ""
+	if book != nil {
+		aiTitle = book.Title
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"snapshot": snap,
-		"name":     row.Name,
+		"name":     displayName(row, aiTitle),
+		"ai_title": aiTitle,
 		"has_book": book != nil || snap.Premise != "" || len(snap.Outline) > 0,
 		"language": s.cfg.NormalizedLanguage(),
 	})

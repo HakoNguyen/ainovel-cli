@@ -99,6 +99,7 @@ docker compose up -d web
 Mở **http://localhost:8765**. *(Binary: `./ainovel-cli --web --addr :8765`)*
 
 - **Thư viện truyện**: trang chủ liệt kê mọi truyện kèm trạng thái (AI đang chạy, đã viết bao nhiêu chương, bạn đã viết bao nhiêu chữ). Mỗi truyện có thư mục riêng `workspace/books/<id>/` và Host riêng, nên **nhiều truyện có thể để AI chạy cùng lúc**. Truyện cũ ở `workspace/output/novel` (tạo từ TUI) được tự động đưa vào thư viện.
+- **Đổi tên / ẩn / khôi phục**: tên bạn đặt trong thư viện được ưu tiên hơn tên AI đặt (không sửa file truyện). Truyện bị ẩn nằm ở mục “Truyện đã ẩn” cuối trang thư viện; nút “🔍 Tìm truyện trên đĩa” đưa các thư mục truyện có sẵn trong `workspace/` vào thư viện.
 - **CSDL SQLite** `workspace/ainovel.db`: lưu danh sách truyện và **các phiên trò chuyện** với trợ lý của từng truyện (tạo, đổi tên, xoá phiên; tải lại trang vẫn còn lịch sử).
 
 - **Hai khung song song**: bên trái là dàn ý chương, kế hoạch chi tiết, bản AI viết và luồng AI đang viết trực tiếp; bên phải là bản thảo của bạn, tự lưu vào `<thư mục truyện>/user_drafts/NN.md` (engine không bao giờ đụng vào đây).
